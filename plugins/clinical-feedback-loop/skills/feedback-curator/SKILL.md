@@ -1,7 +1,7 @@
 ---
 name: feedback-curator
 description: Use when importing colleague feedback, clustering issue reports, resolving duplicate or conflicting reports, preparing a weekly review, or publishing an approved Memory Pack.
-version: 2026.10.21.2
+version: 2026.10.21.3
 ---
 
 # Feedback Curator
@@ -41,7 +41,8 @@ node "$CLI" sync-staged --project-dir "${PENGUIN_HOME}/${PENGUIN_PROJECT_ID}"
 
 This is necessary because normal Agent sessions may write only their Workspace and scratchpad.
 
-2. Import every new workbook under `feedback/imports/` with `import-excel`. Pass the importing
+2. Import every new workbook under `imports/` in the central feedback Workspace with
+   `import-excel`. Pass the importing
    colleague's `--user-id` and test round when known.
 3. Run:
 
@@ -50,9 +51,9 @@ node "$CLI" review --from YYYY-MM-DD --to YYYY-MM-DD
 ```
 
 4. Read `packet.json`, `packet.md` and `reports.jsonl`.
-5. Create Issue Clusters in `feedback/clusters/<id>.json`. Merge only reports with the same
+5. Create Issue Clusters in `clusters/<id>.json`. Merge only reports with the same
    capability, artifact or workflow step, failure mode, and likely root category.
-6. Create Conflict Groups in `feedback/conflicts/<id>.json` when claims cannot all apply. Preserve
+6. Create Conflict Groups in `conflicts/<id>.json` when claims cannot all apply. Preserve
    every side and its evidence; do not use majority vote.
 7. Never use `source: rsi_eval` as colleague experience.
 
@@ -69,7 +70,7 @@ Prepare Memory Candidates only from reviewed clusters. V0 permits:
 Do not create `scope: user`. A single reporter's preference cannot become a company rule without
 an explicit administrator decision and rationale.
 
-Write the candidate pack in a staging directory under `feedback/reviews/` with:
+Write the candidate pack in a staging directory under `reviews/` with:
 
 ```text
 manifest.json

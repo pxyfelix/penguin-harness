@@ -86,11 +86,12 @@ Agent 执行的 `penguin` 命令被 Node 当成 JavaScript 解析。
 `clinical-feedback-loop` 插件已加入 fork，并安装到测试 Project：
 
 - `feedback-capture` `2026.10.21.2` 装在被测 Agent。
-- `feedback-curator` `2026.10.21.2` 装在 `default_agent`。
+- `feedback-curator` `2026.10.21.3` 装在 `default_agent`。
 - `curated-memory-reader` `2026.10.21.1` 装在全部 Agent。
 - 六列 Excel 模板、Issue/Cluster/Conflict/Memory Pack Schema 和分类字典已生成。
 - 反馈目录包含 `inbox`、`normalized`、`clusters`、`conflicts`、`reviews`、`decisions`、
   `memory-packs`、`quarantine`、`imports` 和 `tools`。
+- 测试服务器已安装 LibreOffice Calc；XLSX 通过 headless 转换后导入。
 - 每周任务 `weekly-feedback-curation` 已激活，首次触发为 2026-10-26 02:00 Asia/Shanghai。
 - Curator 的 Schedule Workspace 固定为中心 `feedback/`，因此可以写审核产物；普通 Agent
   仍然只能写自己的 Workspace。
