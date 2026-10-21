@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://penguinharness.dev/schemas/clinical-feedback/issue.schema.json",
+  "title": "Clinical feedback issue report",
+  "type": "object",
+  "required": [
+    "id",
+    "created_at",
+    "source",
+    "project_id",
+    "capability",
+    "user_id",
+    "observed",
+    "expected",
+    "severity",
+    "status"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "source": {
+      "enum": ["agent_capture", "excel", "manual", "rsi_eval"]
+    },
+    "project_id": { "type": "string" },
+    "agent_id": { "type": ["string", "null"] },
+    "capability": {
+      "enum": ["crf-review", "sap-authoring", "tfl-shell-authoring", "workflow", "other"]
+    },
+    "user_id": { "type": "string" },
+    "session_id": { "type": ["string", "null"] },
+    "trace_path": { "type": ["string", "null"] },
+    "workspace": { "type": ["string", "null"] },
+    "case_id": { "type": ["string", "null"] },
+    "observed": { "type": "string", "minLength": 1 },
+    "expected": { "type": "string", "minLength": 1 },
+    "category": { "type": "string" },
+    "severity": { "enum": ["blocker", "high", "normal", "low"] },
+    "evidence": { "type": "array", "items": { "type": "object" } },
+    "root_cause_hint": { "type": "array", "items": { "type": "string" } },
+    "status": {
+      "enum": ["new", "triaged", "clustered", "rejected", "deferred"]
+    },
+    "sensitivity": { "type": "string" },
+    "fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": true
+}

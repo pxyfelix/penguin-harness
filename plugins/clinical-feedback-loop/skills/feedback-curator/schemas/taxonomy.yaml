@@ -1,0 +1,28 @@
+capabilities:
+  - crf-review
+  - sap-authoring
+  - tfl-shell-authoring
+  - workflow
+  - other
+categories:
+  - omission
+  - unsupported_claim
+  - incorrect_content
+  - inconsistent_output
+  - missing_traceability
+  - unusable_format
+  - workflow_friction
+  - other
+severities:
+  blocker: Prevents the task from being used or violates a critical rule.
+  high: Requires substantive rework before the output is acceptable.
+  normal: A real defect or omission that can be corrected locally.
+  low: Usability or polish issue with limited effect on the result.
+targets:
+  - memory
+  - skill
+  - prompt
+  - hook
+  - tool
+  - benchmark
+  - workspace

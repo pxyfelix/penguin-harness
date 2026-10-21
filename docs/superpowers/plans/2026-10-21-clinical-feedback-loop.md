@@ -39,7 +39,6 @@
 - Create: `plugins/clinical-feedback-loop/package.json`
 - Create: `plugins/clinical-feedback-loop/icon.svg`
 - Create: `plugins/clinical-feedback-loop/README.md`
-- Create: `plugins/clinical-feedback-loop/LICENSE`
 - Create: the empty `skills/` and `schemas/` directories through files added in later tasks.
 
 - [ ] **Step 1: Add the plugin manifest**
@@ -236,7 +235,7 @@ Run:
 & 'E:\Project\sap\.venv\Scripts\python.exe' -c "from openpyxl import load_workbook; w=load_workbook(r'plugins/clinical-feedback-loop/skills/feedback-curator/templates/feedback.xlsx'); print(w.sheetnames, w['反馈'].max_column, w['反馈'].max_row)"
 ```
 
-Expected: `['说明', '反馈'] 6 2`.
+Expected: `['反馈', '填写说明', '示例'] 6 500`.
 
 - [ ] **Step 6: Run tests**
 

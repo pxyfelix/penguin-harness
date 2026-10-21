@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Clinical feedback issue cluster",
+  "type": "object",
+  "required": ["id", "title", "capability", "report_ids", "status"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^FC-[A-Za-z0-9_-]+$" },
+    "title": { "type": "string", "minLength": 1 },
+    "capability": { "type": "string" },
+    "report_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "variants": { "type": "array", "items": { "type": "string" } },
+    "unique_users": { "type": "integer", "minimum": 1 },
+    "report_count": { "type": "integer", "minimum": 1 },
+    "max_severity": { "enum": ["blocker", "high", "normal", "low"] },
+    "status": {
+      "enum": ["candidate_for_review", "approved", "rejected", "deferred"]
+    },
+    "proposed_target": {
+      "enum": ["memory", "skill", "prompt", "hook", "tool", "benchmark"]
+    }
+  },
+  "additionalProperties": true
+}

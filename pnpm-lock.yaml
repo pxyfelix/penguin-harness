@@ -816,6 +816,8 @@ importers:
 
   plugins/browser-automation: {}
 
+  plugins/clinical-feedback-loop: {}
+
   plugins/continual-learning: {}
 
   plugins/data-analysis: {}
