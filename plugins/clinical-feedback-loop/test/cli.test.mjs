@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -77,6 +77,36 @@ test("runs init, capture, list, CSV import and review from the CLI", async (t) =
   assert.equal(review.reportCount, 2);
   const packet = JSON.parse(await readFile(path.join(review.outDir, "packet.json"), "utf8"));
   assert.equal(packet.reportCount, 2);
+
+  const candidate = path.join(review.outDir, "candidate-pack");
+  await mkdir(path.join(candidate, "entries"), { recursive: true });
+  await writeFile(
+    path.join(candidate, "manifest.json"),
+    JSON.stringify({
+      version: "2026.10.21.1",
+      approvedBy: "admin",
+      approvedAt: "2026-10-21T10:00:00.000Z",
+      entries: [],
+      contentHash: "0".repeat(64),
+    }),
+    "utf8",
+  );
+  await writeFile(path.join(candidate, "MEMORY.md"), "# Memory\n");
+  await writeFile(path.join(candidate, "changelog.md"), "# Changelog\n");
+  const published = JSON.parse(
+    await run([
+      "publish",
+      ...common,
+      "--source",
+      candidate,
+      "--version",
+      "2026.10.21.1",
+      "--approved-by",
+      "admin",
+    ]),
+  );
+  assert.equal(published.version, "2026.10.21.1");
+  assert.equal(JSON.parse(await run(["active", ...common])).active.version, "2026.10.21.1");
 });
 
 test("uses PENGUIN_HOME and PENGUIN_PROJECT_ID defaults", async (t) => {
