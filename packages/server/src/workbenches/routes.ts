@@ -211,7 +211,9 @@ export function workbenchRoutes(deps: WorkbenchRouteDeps): Hono<AppEnv> {
   }) => {
     const projectId = requireValidId(c as never, "projectId");
     const agentId = requireValidId(c as never, "agentId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    // A Workbench's handler runs server-side, outside the Agent command sandbox. Until
+    // Workbenches execute inside that confinement, only the Project owner may boot or call one.
+    deps.access.requireProjectOwner(c.var.user.userId, projectId);
     return { projectId, agentId };
   };
   const notFound = (err: unknown): never => {

@@ -421,11 +421,21 @@ describe("a loaded workbench", { timeout: 30_000 }, () => {
     expect(await json.json()).toEqual({ count: expect.any(Number) });
   });
 
-  it("is scoped to the Project's users", async () => {
-    const other = apiClient(t.app, (await provisionUser(t.app, "other")).cookie);
+  it("is scoped to Project members and runs code for the owner only", async () => {
+    const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    const outsiderId = `other_${suffix}`;
+    const memberId = `workbench_member_${suffix}`;
+    const other = apiClient(t.app, (await provisionUser(t.app, outsiderId)).cookie);
     expect((await other.get(BASE)).status).toBe(404);
     expect((await other.get(`${BASE}/demo/ui/index.html`)).status).toBe(404);
     expect((await other.delete(`${BASE}/demo`)).status).toBe(404);
+    const member = apiClient(t.app, (await provisionUser(t.app, memberId)).cookie);
+    expect(
+      (await owner.post(`/api/projects/${PROJECT}/members`, { userId: memberId })).status,
+    ).toBe(201);
+    expect((await member.get(BASE)).status).toBe(403);
+    expect((await member.get(`${BASE}/demo/ui/index.html`)).status).toBe(403);
+    expect((await member.post(`${BASE}/demo/api/count`, {})).status).toBe(403);
     expect((await owner.get(`${BASE}/demo/ui/index.html`)).status).toBe(200);
     expect((await owner.get(`${BASE}/nope/ui/index.html`)).status).toBe(404);
     expect((await owner.get(`${BASE}/nope/api/`)).status).toBe(404);
