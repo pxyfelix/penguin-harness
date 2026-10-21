@@ -2,7 +2,7 @@
 
 日期：2026-10-21
 
-状态：待用户审阅
+状态：设计已确认；测试环境已部分实施，反馈与定时记忆闭环待实施
 
 ## 摘要
 
@@ -16,6 +16,79 @@ General Agent 每周读取新增反馈、Excel 和相关对话证据，完成去
 
 第一期只允许公司级与能力级知识进入共享知识包，不发布个人级长期记忆。该机制不训练模型权重，
 也还不是完整的 RSI；它负责收集经验、形成题库和改进候选。
+
+## 当前实施状态（2026-10-21）
+
+### 测试环境
+
+- 使用独立的 `7365` 测试实例；正式实例 `7364` 未替换。
+- 新建 Project `clinical_capability_pilot`，显示名为“临床 Agent 能力测试”，owner 为 `admin`。
+- 默认模型为 `deepseek-v4-flash`，模型密钥在服务器内部复制，不进入本文档。
+- 已从旧 SAP 平台接入 8 个非管理员同事账号并加入该 Project；不记录账号名与密码。
+- 8 个账号都使用旧平台的统一初始密码，并标记为首次登录密码；管理员未替同事记录新密码。
+- 这 8 个账号已从 `default_project` 移除，访问旧 Project 返回 `404`。
+- 已验证 8 个账号均可登录，且只会在共享测试 Project 和自己的个人 Project 中工作。
+
+### 业务 Agent
+
+Project 中保留系统必需的 `default_agent`，另有 4 个业务 Agent：
+
+| Agent id | 角色 | 当前用途 |
+| --- | --- | --- |
+| `qc_reviewer` | QC Reviewer | Protocol、CRF、SAP、Table Shell 的独立审阅 |
+| `sap_author` | SAP Author | SAP 撰写、证据映射与未决事项登记 |
+| `shell_author` | Table Shell Author | TFL Table Shell 撰写与 SAP 追溯 |
+| `lead_statistician` | Lead Statistician | 任务路由、委派、验收与跨交付物一致性检查 |
+
+4 个业务 Agent 和 `default_agent` 的原生长期 Memory 均已关闭。公司模式专用的 `company-*`
+Skill 已从 4 个业务 Agent 中移除。
+
+### Lead 委派能力
+
+`lead_statistician` 已安装 `clinical-lead-delegation` Skill，版本 `2026.10.21.2`。该 Skill 固定：
+
+- 先查询 Project 内真实 Agent id，不猜名字；
+- SAP 派给 `sap_author`，Table Shell 派给 `shell_author`，CRF Review 派给 `qc_reviewer`；
+- 独立任务使用 `run_subagent(agent_id=...)` 和 `run_in_background: true`；
+- 在两个子 Agent 返回前取得两个 `subagent_id`；
+- 只有实际重叠启动时才报告 `dispatch_mode: parallel`；
+- 每个子 Agent 使用 `handoffs/<run_id>/<agent_id>/`；
+- 汇总时检查分析人群、方法、时点、脚注和编号冲突。
+
+Lead 的 `AGENTS.md` 已要求其遇到 CRF、SAP、Table Shell 或跨交付物协调任务时先读取该 Skill。
+
+已创建回归 Benchmark `lead-delegation`，版本 `2026.10.21.1`，当前包含一题
+`CASE-001-route-and-concurrency`。评分覆盖正确路由、后台并发、子 Agent 跟踪、目录隔离、
+内容可执行性、冲突检查和产物完整性。当前还没有正式基线分。
+
+2026-10-21 的验证结果：
+
+- Lead 自行发现 `sap_author` 与 `shell_author`，没有误派给 QC 或自己。
+- 两个后台子任务分别产生了 `subagent_id`，子 Session 的 Agent State 指向正确目录。
+- 两个子 Session 在同一秒启动，均先返回状态 ID，再返回业务结果。
+- 较完整的 SAP/Table Shell 测试使用了独立交接目录，并识别出 8 项内容不一致，其中 3 项为高严重度。
+- 回归题同时区分了“路由失败”和“内容不一致”，未把后者误报成路由错误。
+
+### 测试实例修复
+
+测试实例的 `penguin-harness-multiuser.service` 原先把
+`PENGUIN_CLI_ENTRY` 错误设置为 shell 启动器 `/home/ubuntu/.penguin/bin/penguin`，导致
+Agent 执行的 `penguin` 命令被 Node 当成 JavaScript 解析。
+
+已改为 `/home/ubuntu/.penguin/lib/dist/penguin.js`，并验证：
+
+- 服务状态为 `active`；
+- `7365/login` 返回 HTTP `200`；
+- `penguin agent ls --json --project-id clinical_capability_pilot` 正常返回 5 个 Agent。
+
+### 尚未实施
+
+- `feedback-capture`、`feedback-curator` 和 `curated-memory-reader` 三个 Skill。
+- 极简 Excel 模板、Issue Report Schema 和反馈目录。
+- 每周整理任务与 Memory Pack 发布。
+- 可选的反馈管理 UI 和原生只读 Memory 模式。
+- CRF Review 与 Table Shell 的首批正式题目。
+- SAP Baseline 目前仍在旧 Project；尚未迁移到新的测试 Project。
 
 ## 目标
 
@@ -444,13 +517,17 @@ proposed_target: skill
 7. RSI 只能读取已审核的 Benchmark，不能读取或修改反馈基础设施。
 8. 回滚到上一 Memory Pack 不需要数据迁移。
 
-## 拆分
+## 实施顺序与状态
 
-本设计是总契约，实施分为独立计划：
+| 实施项 | 状态 | 当前结果 |
+| --- | --- | --- |
+| 测试 Project、业务 Agent 与用户接入 | 已完成 | `clinical_capability_pilot` 可登录并隔离 |
+| 业务 Agent 长期 Memory 关闭 | 已完成 | 5 个 Agent 均为 `memory.enabled: false` |
+| Lead 委派协议与回归 Benchmark | 已完成 | Skill `2026.10.21.2`，Benchmark `lead-delegation` |
+| 反馈采集、Excel 导入、聚类与冲突处理 | 待实施 | 尚无 `clinical-feedback-loop` 插件 |
+| 每周整理和只读 Memory Pack 发布 | 待实施 | 尚无定时整理任务与 Pack |
+| CRF、SAP、Table Shell 初始 Benchmark | 部分完成 | 已有一个 SAP Benchmark 和 Lead 回归题；其余待建 |
+| 管理员反馈 UI 与原生只读 Memory | 后续 | 不进入第一轮实施 |
 
-1. 反馈采集、Excel 导入、规范化、聚类与冲突处理；
-2. 每周整理和只读 Memory Pack 发布；
-3. CRF Review、SAP Authoring、Table Shell 的初始 Benchmark；
-4. 可选的管理员反馈 UI 和原生只读 Memory 模式。
-
-第一份实施计划只覆盖第 1、2 项。Benchmark 出题在反馈闭环完成至少一轮真实试用后开始。
+下一步只实施 `clinical-feedback-loop` 插件、极简 Excel、反馈/聚类目录和每周审核包。
+Memory Pack 的自动发布、反馈 UI 和原生 `memory.mode` 留到后续阶段。
