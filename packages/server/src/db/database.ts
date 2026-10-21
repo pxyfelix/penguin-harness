@@ -62,10 +62,14 @@ export function openDatabase(dbPath: string): DatabaseSync {
   // touches an existing table, so they are ALTERed in here. Keep the list in sync with
   // schema.ts; drop entries only in a release allowed to break existing web.db files.
   ensureColumn(db, "sessions", "client", "TEXT");
+  ensureColumn(db, "sessions", "owner_user_id", "TEXT");
   ensureColumn(db, "sessions", "has_trace", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "sessions", "fork_count", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "sessions", "thinking_level", "TEXT");
   ensureColumn(db, "sessions", "sandbox", "TEXT");
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_sessions_owner ON sessions(project_id, agent_id, owner_user_id, created_at DESC)",
+  );
   // A v0.2.0 web.db has auth_sessions without `via`; CREATE TABLE IF NOT EXISTS never adds a
   // column, so every INSERT would fail "no column named via" until this runs.
   ensureColumn(db, "auth_sessions", "via", "TEXT");

@@ -35,13 +35,16 @@ import {
   requireValidId,
 } from "../validate.js";
 import type { AgentConfig } from "../../mechanisms/agents.js";
+import type { SessionIndex } from "../../mechanisms/sessions.js";
 import type { Traces } from "../../mechanisms/traces.js";
 import type { Access } from "../../mechanisms/projects.js";
+import { HttpError } from "../errors.js";
 
 /** What this route group reaches — bound by its module (src/modules). */
 export interface AgentTracesRouteDeps {
   agentConfigService: AgentConfig;
   access: Access;
+  sessionsRepo: Pick<SessionIndex, "findById">;
   traceService: Traces;
 }
 
@@ -58,7 +61,8 @@ export function agentTracesRoutes(deps: AgentTracesRouteDeps): Hono<AppEnv> {
     // Id validation happens before any path construction: prevents agentId path traversal for cross-Project privilege escalation.
     const projectId = requireValidId(c, "projectId");
     const agentId = requireValidId(c, "agentId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const project = deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const canViewAll = c.var.user.isAdmin || project.role === "owner";
     // Both params absent -> null -> the legacy full response, byte-for-byte as before.
     const paging = optionalPagingQuery(c);
     // Optional category filter (paging then applies within the category): only meaningful
@@ -75,15 +79,36 @@ export function agentTracesRoutes(deps: AgentTracesRouteDeps): Hono<AppEnv> {
     return c.json(
       await deps.traceService.agentTraces(projectId, agentId, paging, {
         ...(rawCategory !== undefined ? { category: rawCategory as SessionCategory } : {}),
+        ...(canViewAll ? {} : { ownerUserId: c.var.user.userId }),
       }),
     );
   });
+
+  const requireVisibleSession = (
+    c: {
+      var: AppEnv["Variables"];
+    },
+    projectId: string,
+    sessionId: string,
+    canViewAll: boolean,
+  ): void => {
+    if (canViewAll) return;
+    const row = deps.sessionsRepo.findById(sessionId);
+    if (row?.projectId !== projectId || row.ownerUserId !== c.var.user.userId) {
+      throw new HttpError(
+        404,
+        "session_not_found",
+        "Session does not exist or you do not have access.",
+      );
+    }
+  };
 
   app.get("/:sessionId/:index", async (c) => {
     const projectId = requireValidId(c, "projectId");
     const agentId = requireValidId(c, "agentId");
     const sessionId = requireValidId(c, "sessionId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const project = deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    requireVisibleSession(c, projectId, sessionId, c.var.user.isAdmin || project.role === "owner");
     const index = positiveIntParam(c, "index");
     const { offset, limit } = paginationQuery(c);
     return c.json(
@@ -95,7 +120,8 @@ export function agentTracesRoutes(deps: AgentTracesRouteDeps): Hono<AppEnv> {
     const projectId = requireValidId(c, "projectId");
     const agentId = requireValidId(c, "agentId");
     const sessionId = requireValidId(c, "sessionId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const project = deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    requireVisibleSession(c, projectId, sessionId, c.var.user.isAdmin || project.role === "owner");
     const index = positiveIntParam(c, "index");
     return c.json(await deps.traceService.analyze(projectId, agentId, sessionId, index));
   });
@@ -106,7 +132,8 @@ export function agentTracesRoutes(deps: AgentTracesRouteDeps): Hono<AppEnv> {
     const projectId = requireValidId(c, "projectId");
     const agentId = requireValidId(c, "agentId");
     const sessionId = requireValidId(c, "sessionId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const project = deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    requireVisibleSession(c, projectId, sessionId, c.var.user.isAdmin || project.role === "owner");
     const index = positiveIntParam(c, "index");
     const bytes = await deps.traceService.readFileRaw(projectId, agentId, sessionId, index);
     const fileName = `${sessionId}_${String(index).padStart(3, "0")}.jsonl`;

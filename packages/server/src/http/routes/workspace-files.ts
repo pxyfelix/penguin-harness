@@ -23,6 +23,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../../auth/middleware.js";
 import type { Access } from "../../mechanisms/projects.js";
+import type { SessionIndex } from "../../mechanisms/sessions.js";
 import type { FileReveal, WorkspaceFiles } from "../../mechanisms/workspace.js";
 import { MAX_UPLOAD_BYTES } from "../../services/workspace-files-service.js";
 import { assertWorkspaceAllowed } from "../../services/workspace-guard.js";
@@ -241,6 +242,7 @@ export function registerWorkspaceFileRoutes(
 /** What the directory-addressed group reaches beyond the handlers. */
 export interface WorkspaceFilesRouteDeps extends WorkspaceFileRouteDeps {
   access: Access;
+  sessionsRepo: Pick<SessionIndex, "listByProject">;
 }
 
 /**
@@ -253,12 +255,24 @@ export function workspaceFilesRoutes(deps: WorkspaceFilesRouteDeps): Hono<AppEnv
   const app = new Hono<AppEnv>();
   registerWorkspaceFileRoutes(app, "", deps, async (c) => {
     const projectId = requireValidId(c, "projectId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const project = deps.access.requireProjectAccess(c.var.user.userId, projectId);
     const workspace = c.req.query("workspace")?.trim() ?? "";
     if (!path.isAbsolute(workspace)) {
       throw new HttpError(400, "workspace_not_found", "workspace must be an absolute path.");
     }
-    return await assertWorkspaceAllowed({ workspace });
+    const resolved = await assertWorkspaceAllowed({ workspace });
+    if (c.var.user.isAdmin || project.role === "owner") return resolved;
+    const owned = deps.sessionsRepo
+      .listByProject(projectId)
+      .some(
+        (row) =>
+          row.ownerUserId === c.var.user.userId &&
+          path.resolve(row.workspace) === path.resolve(resolved),
+      );
+    if (!owned) {
+      throw new HttpError(404, "workspace_not_found", "Workspace does not exist.");
+    }
+    return resolved;
   });
   return app;
 }

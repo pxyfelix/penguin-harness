@@ -41,6 +41,7 @@ export interface DeletedSession {
   sessionId: string;
   projectId: string;
   agentId: string;
+  ownerUserId?: string | null;
   /** ISO time; a `subagent` pointer recorded before it was copied in by a fork. */
   createdAt: string;
 }
@@ -61,7 +62,7 @@ const MAX_CHILD_DEPTH = 4;
 export async function deleteSessionTree(
   deps: SessionDeletionDeps,
   row: DeletedSession,
-  onDeleted: (sessionId: string) => void,
+  onDeleted: (sessionId: string, ownerUserId: string | null) => void,
 ): Promise<void> {
   await deleteOne(deps, row, onDeleted, new Set([row.sessionId]), 0);
 }
@@ -69,7 +70,7 @@ export async function deleteSessionTree(
 async function deleteOne(
   deps: SessionDeletionDeps,
   row: DeletedSession,
-  onDeleted: (sessionId: string) => void,
+  onDeleted: (sessionId: string, ownerUserId: string | null) => void,
   visited: Set<string>,
   depth: number,
 ): Promise<void> {
@@ -108,6 +109,7 @@ async function deleteOne(
             sessionId: child.sessionId,
             projectId: row.projectId,
             agentId,
+            ownerUserId: childRow?.ownerUserId ?? row.ownerUserId ?? null,
             // A child with no row was created when its pointer was recorded.
             createdAt: childRow?.createdAt ?? child.spawnedAt,
           },
@@ -131,7 +133,7 @@ async function deleteOne(
     deps.unbindMessaging(row.sessionId);
     // Session ids are never reused, so a stale entry would never be matched; dropped anyway.
     deps.sources.delete(row.sessionId);
-    onDeleted(row.sessionId);
+    onDeleted(row.sessionId, row.ownerUserId ?? null);
   } finally {
     deps.manager.endSessionDeletion(row.sessionId);
   }

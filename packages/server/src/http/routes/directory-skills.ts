@@ -14,6 +14,7 @@
  * rather than an error — pointing at one is a normal thing to do.
  */
 import { Hono } from "hono";
+import path from "node:path";
 import type { DirectorySkillsResponse } from "../../api/types.js";
 import type { AppEnv } from "../../auth/middleware.js";
 import { requireProjectDir, requireValidId } from "../validate.js";
@@ -21,19 +22,35 @@ import { requireProjectDir, requireValidId } from "../validate.js";
 /** What this route group reaches — bound by its module (src/modules). */
 export interface DirectorySkillsRouteDeps {
   access: Access;
+  sessionsRepo: Pick<SessionIndex, "listByProject">;
 }
 import { discoverDirectorySkills } from "../../services/directory-skills.js";
 import { toSkillItem } from "../../services/plugin-library.js";
 import type { Access } from "../../mechanisms/projects.js";
+import type { SessionIndex } from "../../mechanisms/sessions.js";
+import { HttpError } from "../errors.js";
+import { isWithinPath } from "../../services/workspace-guard.js";
 
 export function directorySkillsRoutes(deps: DirectorySkillsRouteDeps): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/", async (c) => {
     const projectId = requireValidId(c, "projectId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const project = deps.access.requireProjectAccess(c.var.user.userId, projectId);
 
     const real = await requireProjectDir(c.req.query("path"));
+    if (!c.var.user.isAdmin && project.role !== "owner") {
+      const allowed = deps.sessionsRepo
+        .listByProject(projectId)
+        .some(
+          (row) =>
+            row.ownerUserId === c.var.user.userId &&
+            isWithinPath(real, path.resolve(row.workspace)),
+        );
+      if (!allowed) {
+        throw new HttpError(404, "dir_not_found", `Directory does not exist: ${real}.`);
+      }
+    }
 
     const skills = await discoverDirectorySkills(real);
     return c.json({

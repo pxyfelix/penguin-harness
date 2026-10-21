@@ -12,6 +12,8 @@ import type { SessionIndex } from "../../mechanisms/sessions.js";
 export interface SessionRow {
   sessionId: string;
   projectId: string;
+  /** The person who created this Session. NULL = legacy/system row, visible only to admin. */
+  ownerUserId?: string | null;
   agentId: string;
   /**
    * Provider group of the session's **current** model (pairs with `modelId` to form the model
@@ -103,6 +105,7 @@ function mapRow(r: Record<string, unknown>): SessionRow {
   return {
     sessionId: r.session_id as string,
     projectId: r.project_id as string,
+    ownerUserId: (r.owner_user_id as string | null) ?? null,
     agentId: r.agent_id as string,
     provider: r.provider as string,
     modelId: r.model_id as string,
@@ -175,12 +178,13 @@ export class SessionsRepo implements SessionIndex {
   private runInsert(verb: "INSERT" | "INSERT OR IGNORE", row: SessionRow): void {
     this.db
       .prepare(
-        `${verb} INTO sessions (session_id, project_id, agent_id, provider, model_id, workspace, approval_mode, title, client, has_trace, last_active_at, created_at, sandbox, thinking_level)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, ?), ?, ?, ?)`,
+        `${verb} INTO sessions (session_id, project_id, owner_user_id, agent_id, provider, model_id, workspace, approval_mode, title, client, has_trace, last_active_at, created_at, sandbox, thinking_level)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, ?), ?, ?, ?)`,
       )
       .run(
         row.sessionId,
         row.projectId,
+        row.ownerUserId ?? null,
         row.agentId,
         row.provider,
         row.modelId,

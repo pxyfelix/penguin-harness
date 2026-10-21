@@ -12,6 +12,7 @@ import type { AgentApi } from "../mechanisms/agent-api.js";
 import type { AgentConfig, Benchmarks, Memory, Snapshots } from "../mechanisms/agents.js";
 import type { Access, ProjectConfigStore } from "../mechanisms/projects.js";
 import type { Settings } from "../mechanisms/settings.js";
+import type { SessionIndex } from "../mechanisms/sessions.js";
 import type { Traces } from "../mechanisms/traces.js";
 
 /**
@@ -73,6 +74,7 @@ export class AgentRoutes {
   @Use() private readonly projectConfig!: ProjectConfigStore;
   @Use() private readonly clock!: Clock;
   @Use() private readonly settings!: Settings;
+  @Use() private readonly sessionsRepo!: SessionIndex;
   @Bind("agents.memory") memoryRoutes!: Hono<AppEnv>;
   @Bind("agents.benchmarks") benchmarksRoutes!: Hono<AppEnv>;
   @Bind("agents.skills") skillsRoutes!: Hono<AppEnv>;
@@ -103,6 +105,7 @@ export class AgentRoutes {
     this.tracesRoutes = agentTracesRoutes({
       agentConfigService,
       access,
+      sessionsRepo: this.sessionsRepo,
       traceService: this.traces,
     });
   }

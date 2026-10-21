@@ -1641,10 +1641,20 @@ export class TraceService implements Traces {
     projectId: string,
     agentId: string,
     paging?: { offset: number; limit: number } | null,
-    opts: { category?: SessionCategory } = {},
+    opts: { category?: SessionCategory; ownerUserId?: string } = {},
   ): Promise<AgentTracesResponse> {
     await this.index.reconcileAgent(projectId, agentId);
-    const files = this.store.listFilesByAgent(projectId, agentId);
+    const owned =
+      opts.ownerUserId === undefined
+        ? null
+        : new Set(
+            (this.sessions?.listByAgent(projectId, agentId) ?? [])
+              .filter((row) => row.ownerUserId === opts.ownerUserId)
+              .map((row) => row.sessionId),
+          );
+    const files = this.store
+      .listFilesByAgent(projectId, agentId)
+      .filter((file) => owned === null || owned.has(file.sessionId));
     if (paging) return this.agentTracesPage(projectId, agentId, files, paging, opts);
     const byDate = new Map<string, Map<string, { index: number; sizeBytes: number }[]>>();
     for (const f of files) {
@@ -1701,7 +1711,7 @@ export class TraceService implements Traces {
     agentId: string,
     files: TraceFileRow[],
     paging: { offset: number; limit: number },
-    opts: { category?: SessionCategory },
+    opts: { category?: SessionCategory; ownerUserId?: string },
   ): Promise<AgentTracesResponse> {
     const bySession = new Map<string, TraceFileRow[]>();
     for (const f of files) {

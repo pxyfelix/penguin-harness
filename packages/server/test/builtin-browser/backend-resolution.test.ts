@@ -239,7 +239,7 @@ describe("an agent's call", () => {
             yield assistantText("done");
           },
         }),
-        { projectId: "default_project" },
+        { projectId: "default_project", ownerUserId: "bob" },
       );
       const untouched = uniqueSessionId();
       adoptSession(t.deps, fakeSession(untouched), { projectId: "default_project" });

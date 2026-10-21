@@ -621,6 +621,7 @@ describe("migration 8 → current: model-promotions", () => {
         "sessions-kept-at",
         "agent-api-session-settings",
         "agent-api-concurrency",
+        "sessions-owner",
       ]);
       expect(schemaVersion(db)).toBe(LATEST_VERSION);
       expect(promotionsTableExists()).toEqual({ "1": 1 });
@@ -649,6 +650,7 @@ describe("migration 8 → current: model-promotions", () => {
         "sessions-kept-at",
         "agent-api-session-settings",
         "agent-api-concurrency",
+        "sessions-owner",
       ]);
       expect(schemaVersion(db)).toBe(LATEST_VERSION);
     } finally {
@@ -677,6 +679,7 @@ describe("migration 9 → current: model-provider-auth-tokens", () => {
         "sessions-kept-at",
         "agent-api-session-settings",
         "agent-api-concurrency",
+        "sessions-owner",
       ]);
       expect(schemaVersion(db)).toBe(LATEST_VERSION);
       expect(tableExists()).toEqual({ "1": 1 });
@@ -727,6 +730,7 @@ describe("migration 12 → current: browser-extensions", () => {
         "sessions-kept-at",
         "agent-api-session-settings",
         "agent-api-concurrency",
+        "sessions-owner",
       ]);
       expect(schemaVersion(db)).toBe(LATEST_VERSION);
       db.exec("PRAGMA foreign_keys = ON");
@@ -790,6 +794,7 @@ describe("migration 13 → current: agent-api", () => {
         "sessions-kept-at",
         "agent-api-session-settings",
         "agent-api-concurrency",
+        "sessions-owner",
       ]);
       expect(schemaVersion(db)).toBe(LATEST_VERSION);
       const enable = () =>
@@ -878,6 +883,7 @@ describe("migration 14 → current: messaging-conversations", () => {
         "sessions-kept-at",
         "agent-api-session-settings",
         "agent-api-concurrency",
+        "sessions-owner",
       ]);
       expect(schemaVersion(db)).toBe(LATEST_VERSION);
       const put = () =>
@@ -922,6 +928,7 @@ describe("migration 15 → current: sessions-kept-at", () => {
         "sessions-kept-at",
         "agent-api-session-settings",
         "agent-api-concurrency",
+        "sessions-owner",
       ]);
       expect(schemaVersion(db)).toBe(LATEST_VERSION);
       expect(db.prepare("SELECT session_id, kept_at FROM sessions").all()).toEqual([

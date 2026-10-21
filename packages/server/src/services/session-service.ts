@@ -526,6 +526,8 @@ export class SessionService {
       workspaceGroup?: string;
       withCounts?: boolean;
       excludeOrg?: boolean;
+      /** Member listing: keep only this person's Sessions. Project owners omit it for the full view. */
+      ownerUserId?: string;
     } = {},
   ): Promise<{
     sessions: SessionInfo[];
@@ -536,6 +538,11 @@ export class SessionService {
   }> {
     const { paging, order = "created", category, workspaceGroup, withCounts, excludeOrg } = opts;
     const { rows, orgIds, traces } = await this.walkRows(projectId, agentId, excludeOrg === true);
+    if (opts.ownerUserId !== undefined) {
+      for (const [id, row] of rows) {
+        if (row.ownerUserId !== opts.ownerUserId) rows.delete(id);
+      }
+    }
 
     const sorted = [...rows.values()].sort(
       order === "activity" ? compareActivityDesc : compareCreatedDesc,
@@ -734,6 +741,8 @@ export class SessionService {
     /** The provider group for `modelId`; always paired with modelId, never inferred. */
     provider?: string;
     workspace?: string;
+    /** The person creating this Session; NULL is reserved for legacy/system callers. */
+    ownerUserId?: string;
     thinkingLevel?: ThinkingLevelName;
     approvalMode?: ApprovalMode;
     /** The composer's sandbox picks; omitted halves take the server's settings. */
@@ -824,6 +833,7 @@ export class SessionService {
     const row: SessionRow = {
       sessionId: session.sessionId,
       projectId: args.projectId,
+      ownerUserId: args.ownerUserId ?? null,
       agentId: args.agentId,
       provider: session.provider,
       modelId: session.modelId,

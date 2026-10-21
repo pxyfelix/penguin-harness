@@ -42,19 +42,32 @@ describe("session_state on the user channel", () => {
   let t: TestApp;
   let owner: { cookie: string };
   let SID: string;
-  let boxes: { owner: ReturnType<typeof inbox>; member: ReturnType<typeof inbox> };
+  let boxes: {
+    owner: ReturnType<typeof inbox>;
+    member: ReturnType<typeof inbox>;
+    peer: ReturnType<typeof inbox>;
+  };
+  let peer: ReturnType<typeof inbox>;
   let stranger: ReturnType<typeof inbox>;
 
   beforeAll(async () => {
     t = await createTestApp();
     owner = await provisionUser(t.app, "owner");
     await provisionUser(t.app, "member");
+    await provisionUser(t.app, "peer");
     // A logged-in user with their own Project and their own live channel, granted nothing here.
     await provisionUser(t.app, "stranger");
     expect(
       (
         await apiClient(t.app, owner.cookie).post(`/api/projects/${PROJECT}/members`, {
           userId: "member",
+        })
+      ).status,
+    ).toBe(201);
+    expect(
+      (
+        await apiClient(t.app, owner.cookie).post(`/api/projects/${PROJECT}/members`, {
+          userId: "peer",
         })
       ).status,
     ).toBe(201);
@@ -74,11 +87,17 @@ describe("session_state on the user channel", () => {
           yield assistantText("done");
         },
       }),
-      { projectId: PROJECT, createdAt: INSERTED_AT, lastActiveAt: INSERTED_AT },
+      {
+        projectId: PROJECT,
+        ownerUserId: "member",
+        createdAt: INSERTED_AT,
+        lastActiveAt: INSERTED_AT,
+      },
     );
     // Subscribe before anything runs: `peek` on the publish side means a channel that does not
     // exist is skipped, so the test has to be listening the way a real client would be.
-    boxes = { owner: inbox(t, "owner"), member: inbox(t, "member") };
+    boxes = { owner: inbox(t, "owner"), member: inbox(t, "member"), peer: inbox(t, "peer") };
+    peer = boxes.peer;
     stranger = inbox(t, "stranger");
   });
 
@@ -90,10 +109,11 @@ describe("session_state on the user channel", () => {
     await waitFor(() => boxes.owner.run().at(-1) === "idle");
   };
 
-  it("reaches the Project's owner and its members, and no other user", async () => {
+  it("reaches the Project owner and the Session owner, but not another member", async () => {
     await runTask();
     expect(boxes.owner.run()).toEqual(["running", "idle"]);
     expect(boxes.member.run()).toEqual(["running", "idle"]);
+    expect(peer.events).toEqual([]);
     // The stranger's channel exists and is being listened to — it simply is never published to.
     expect(stranger.events).toEqual([]);
   });

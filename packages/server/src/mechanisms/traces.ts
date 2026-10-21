@@ -185,7 +185,7 @@ export abstract class Traces {
     projectId: string,
     agentId: string,
     paging: { offset: number; limit: number } | null,
-    opts?: { category?: SessionCategory },
+    opts?: { category?: SessionCategory; ownerUserId?: string },
   ): Promise<AgentTracesResponse>;
   abstract readFileRaw(
     projectId: string,

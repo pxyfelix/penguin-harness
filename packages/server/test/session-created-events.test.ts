@@ -37,20 +37,29 @@ const created = (events: ServerEvent[]) =>
 describe("session_created on the user channel", () => {
   let t: TestApp;
   let owner: ReturnType<typeof apiClient>;
+  let member: ReturnType<typeof apiClient>;
   let projectId: string;
-  let boxes: { owner: ServerEvent[]; member: ServerEvent[]; stranger: ServerEvent[] };
+  let boxes: {
+    owner: ServerEvent[];
+    member: ServerEvent[];
+    peer: ServerEvent[];
+    stranger: ServerEvent[];
+  };
 
   beforeAll(async () => {
     t = await createTestApp();
     const a = await provisionUser(t.app, "owner");
-    await provisionUser(t.app, "member");
+    const b = await provisionUser(t.app, "member");
+    await provisionUser(t.app, "peer");
     await provisionUser(t.app, "stranger");
     owner = apiClient(t.app, a.cookie);
+    member = apiClient(t.app, b.cookie);
     const res = (await (
       await owner.post("/api/projects", { projectId: "owner-live", name: "project" })
     ).json()) as ProjectCreateResponse;
     projectId = res.project.projectId;
     await owner.post(`/api/projects/${projectId}/members`, { userId: "member" });
+    await owner.post(`/api/projects/${projectId}/members`, { userId: "peer" });
     await owner.put(`/api/projects/${projectId}/models`, {
       defaultModel: { provider: "anthropic", modelId: "claude-sonnet-4-6" },
       models: [{ provider: "anthropic", modelId: "claude-sonnet-4-6", contextWindow: 128000 }],
@@ -63,29 +72,32 @@ describe("session_created on the user channel", () => {
     boxes = {
       owner: inbox(t, "owner"),
       member: inbox(t, "member"),
+      peer: inbox(t, "peer"),
       stranger: inbox(t, "stranger"),
     };
   });
 
-  it("reaches the Project's owner and members with the new row's ids and source, and nobody else", async () => {
-    const res = (await (
+  it("reaches the Project owner and the Session creator, but not another member", async () => {
+    const ownerCreated = (await (
       await owner.post(`/api/projects/${projectId}/agents/default_agent/sessions`, {})
     ).json()) as SessionCreateResponse;
-    const sessionId = res.session.sessionId;
+    const memberCreated = (await (
+      await member.post(`/api/projects/${projectId}/agents/default_agent/sessions`, {})
+    ).json()) as SessionCreateResponse;
 
-    for (const who of ["owner", "member"] as const) {
-      const got = created(boxes[who]);
-      expect(got, who).toHaveLength(1);
-      // The event names the Session's source as its meta records it, the same as the row.
-      expect(got[0]).toMatchObject({
+    expect(created(boxes.owner)).toHaveLength(2);
+    expect(created(boxes.member)).toEqual([
+      expect.objectContaining({
         projectId,
         agentId: "default_agent",
-        sessionId,
-        source: res.session.source,
-      });
-      expect(res.session.source).toBe("user");
-    }
+        sessionId: memberCreated.session.sessionId,
+        source: memberCreated.session.source,
+      }),
+    ]);
+    expect(created(boxes.peer)).toHaveLength(0);
     expect(created(boxes.stranger)).toHaveLength(0);
+    expect(ownerCreated.session.source).toBe("user");
+    expect(memberCreated.session.source).toBe("user");
   });
 
   it("is published after the row is in place, so a reader who reloads on it finds the row", async () => {
@@ -109,11 +121,11 @@ describe("session_created on the user channel", () => {
     await owner.patch(`/api/sessions/${sessionId}`, { title: "made by the CLI" });
     const titles = (events: ServerEvent[]) =>
       events.flatMap((e) => (e.type === "session_title" ? [e] : []));
-    for (const who of ["owner", "member"] as const) {
-      expect(titles(boxes[who]), who).toEqual([
-        { type: "session_title", sessionId, title: "made by the CLI" },
-      ]);
-    }
+    expect(titles(boxes.owner)).toEqual([
+      { type: "session_title", sessionId, title: "made by the CLI" },
+    ]);
+    expect(titles(boxes.member)).toHaveLength(0);
+    expect(titles(boxes.peer)).toHaveLength(0);
     expect(titles(boxes.stranger)).toHaveLength(0);
   });
 });

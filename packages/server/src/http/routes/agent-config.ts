@@ -77,7 +77,9 @@ export function agentConfigRoutes(deps: AgentConfigRouteDeps): Hono<AppEnv> {
   app.put("/", async (c) => {
     const projectId = requireValidId(c, "projectId");
     const agentId = requireValidId(c, "agentId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    // The shared Agent is Project-owned: members may chat with it, but only the owner edits
+    // its prompt/config, so one colleague cannot change the Agent everyone else is using.
+    deps.access.requireProjectOwner(c.var.user.userId, projectId);
     const body = await readJson(c);
     const req: AgentConfigUpdateRequest = {};
     const agentsMd = optionalString(body, "agentsMd", { label: "agentsMd" });

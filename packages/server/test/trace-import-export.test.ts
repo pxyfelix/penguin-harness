@@ -1,6 +1,7 @@
 /**
  * Trace file export/import integration tests:
- * export serves the raw JSONL verbatim as an attachment (any member); import validates the
+ * export serves the raw JSONL verbatim as an attachment to the Project owner or the
+ * Session's own member; import validates the
  * uploaded content (parseable JSONL, leading session_meta, filename-safe session_id) and
  * always stores it as index 1 of a new Session — a session id that exists ANYWHERE in the
  * install is rejected with 409 trace_session_exists — the imported file becomes a listed
@@ -103,7 +104,7 @@ describe("trace-import-export", () => {
     await t.cleanup();
   });
 
-  it("export: serves the raw file with attachment headers (any member)", async () => {
+  it("export: serves the raw file with attachment headers, but another member cannot open it", async () => {
     const messages = sampleTrace(SID);
     await writeTraceFile(t.root, projectId, "default_agent", "2026-07-06", SID, 1, messages);
     const res = await owner.get(`${base()}/${SID}/1/download`);
@@ -114,8 +115,8 @@ describe("trace-import-export", () => {
     );
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(await res.text()).toBe(toContent(messages));
-    // A plain member can export too (same rule as the snapshot export).
-    expect((await member.get(`${base()}/${SID}/1/download`)).status).toBe(200);
+    // The Project owner can export; another member cannot open an unowned/foreign Session.
+    expect((await member.get(`${base()}/${SID}/1/download`)).status).toBe(404);
   });
 
   it("export: unknown index → 404 trace_not_found; outsider → 404", async () => {

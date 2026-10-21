@@ -1017,6 +1017,37 @@ describe("session-manager", () => {
     expect(sessions.findById("child-plain")?.client).toBeNull();
   });
 
+  it("a sub-session inherits the root Session's owner", async () => {
+    sessions.insert({ ...ROW, sessionId: "session-owned", ownerUserId: "colleague" });
+    const childId = "child-owned";
+    const manager = makeManager({
+      load: async () =>
+        fakeSession("session-owned", {
+          async *run() {
+            yield withOrigin(
+              sessionMeta({
+                session_id: childId,
+                model_id: "m-child",
+                provider: "custom",
+                model_context_window: 1000,
+                system_prompt: "sys",
+                agent_state: "/root/p1/child_agent/agent_state",
+                workspace: "/tmp/w-child",
+                source: "subagent",
+              }),
+              childId,
+            );
+            yield withOrigin(assistantText("child done"), childId);
+            yield assistantText("done");
+          },
+        }),
+    });
+
+    await manager.startTask("session-owned", [userText("go")]);
+    await waitFor(() => manager.statusOf("session-owned") === "idle");
+    expect(sessions.findById(childId)?.ownerUserId).toBe("colleague");
+  });
+
   it("sub-session (origin) registration: session_meta persists; the title is generated from the spawning prompt", async () => {
     const fake: RuntimeSession = fakeSession("session-1", {
       async *run() {

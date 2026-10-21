@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS agents (           -- index only; name/description li
 CREATE TABLE IF NOT EXISTS sessions (
   session_id    TEXT PRIMARY KEY,
   project_id    TEXT NOT NULL,
+  owner_user_id TEXT,                                -- person who created this Session; NULL = legacy/system row (admin-only)
   agent_id      TEXT NOT NULL,
   provider      TEXT NOT NULL,                     -- provider group of the session's CURRENT model (paired with model_id as a model reference; moves with each in-session switch)
   model_id      TEXT NOT NULL,                     -- upstream model id of the current model (sent to MMSP as-is; never concatenate <provider>/<id>)

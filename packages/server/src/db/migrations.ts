@@ -676,6 +676,20 @@ export const MIGRATIONS: readonly Migration[] = [
     // Keep the configured limit on rollback; older builds ignore this column.
     down() {},
   },
+  {
+    version: 19,
+    name: "sessions-owner",
+    // Additive: an ownership column. Its index is created by openDatabase after the column
+    // is ensured, so an older sessions table can be upgraded without re-running schema SQL.
+    // Existing rows stay NULL and are therefore visible only to the operator/admin, never
+    // guessed to a member.
+    swapSafe: true,
+    up(db) {
+      ensureColumn(db, "sessions", "owner_user_id", "TEXT");
+    },
+    // Keep ownership on rollback; older builds ignore the column.
+    down() {},
+  },
 ];
 
 /** The highest version this build knows how to reach. */

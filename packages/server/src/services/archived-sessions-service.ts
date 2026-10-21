@@ -241,10 +241,21 @@ export class ArchivedSessionsService {
     const rows: SessionRow[] = [];
     const missing: string[] = [];
     if ("sessionIds" in target) {
+      const managerByProject = new Map(
+        (await this.deps.listProjects(userId)).map((project) => [
+          project.projectId,
+          project.role === "owner",
+        ]),
+      );
       for (const sessionId of new Set(target.sessionIds)) {
         const row = this.deps.sessions.findById(sessionId);
-        if (row === null || !this.deps.canAccess(userId, row.projectId)) missing.push(sessionId);
-        else rows.push(row);
+        if (
+          row === null ||
+          !this.deps.canAccess(userId, row.projectId) ||
+          (!managerByProject.get(row.projectId) && row.ownerUserId !== userId)
+        ) {
+          missing.push(sessionId);
+        } else rows.push(row);
       }
       return { rows, missing };
     }
@@ -268,7 +279,12 @@ export class ArchivedSessionsService {
     const out: ArchivedEntry[] = [];
     for (const project of await this.projectsFor(userId, query.projectId)) {
       const projectName = project.name ?? project.projectId;
-      for (const entry of await this.archivedOf(project.projectId, projectName)) {
+      for (const entry of await this.archivedOf(
+        project.projectId,
+        projectName,
+        userId,
+        project.role === "owner",
+      )) {
         if (query.source !== undefined && archivedSourceOf(entry.source) !== query.source) {
           continue;
         }
@@ -304,11 +320,17 @@ export class ArchivedSessionsService {
   }
 
   /**
-   * One Project's archived Sessions, the user's own conversations only, each titled by its row
-   * or, when the row has no title, by its Trace's first prompt (the Agent Traces listing's
-   * fallback), so a search can find an untitled conversation by what it asked.
+   * One Project's archived Sessions visible to the user — every conversation for the Project
+   * owner, only the member's own otherwise — each titled by its row or, when the row has no
+   * title, by its Trace's first prompt (the Agent Traces listing's fallback), so a search can
+   * find an untitled conversation by what it asked.
    */
-  private async archivedOf(projectId: string, projectName: string): Promise<ArchivedEntry[]> {
+  private async archivedOf(
+    projectId: string,
+    projectName: string,
+    userId: string,
+    canSeeAll: boolean,
+  ): Promise<ArchivedEntry[]> {
     const agentIds = new Set(this.deps.sessions.listByProject(projectId).map((r) => r.agentId));
     const out: ArchivedEntry[] = [];
     for (const agentId of agentIds) {
@@ -322,6 +344,7 @@ export class ArchivedSessionsService {
           )
         : null;
       for (const entry of archived) {
+        if (!canSeeAll && entry.row.ownerUserId !== userId) continue;
         out.push({
           ...entry,
           title: entry.row.title ?? titles?.get(entry.row.sessionId) ?? null,

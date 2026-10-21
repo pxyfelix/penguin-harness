@@ -13,17 +13,39 @@ import type { Channels } from "../hmr/capabilities.js";
 import type { ChannelHub } from "../runtime/channel.js";
 import { userChannelKey } from "../http/routes/events.js";
 import type { Members, ProjectEvents, Projects } from "../mechanisms/projects.js";
+import type { SessionIndex } from "../mechanisms/sessions.js";
 
 @Component()
 export class ProjectNotifier implements ProjectEvents {
   @Use() private readonly projects!: Projects;
   @Use() private readonly members!: Members;
   @Use() private readonly channels!: Channels;
+  @Use() private readonly sessions!: SessionIndex;
 
-  notifyProjectUsers(projectId: string, event: ServerEvent): void {
+  notifyProjectUsers(
+    projectId: string,
+    event: ServerEvent,
+    opts: { sessionOwnerUserId?: string | null } = {},
+  ): void {
     const ownerUserId = this.projects.findById(projectId)?.ownerUserId;
     if (ownerUserId === undefined) return;
-    const audience = new Set([ownerUserId, ...this.members.list(projectId).map((m) => m.userId)]);
+    const accessible = new Set([ownerUserId, ...this.members.list(projectId).map((m) => m.userId)]);
+    let sessionOwnerUserId = opts.sessionOwnerUserId;
+    if (
+      sessionOwnerUserId === undefined &&
+      "sessionId" in event &&
+      typeof event.sessionId === "string"
+    ) {
+      sessionOwnerUserId = this.sessions.findById(event.sessionId)?.ownerUserId ?? null;
+    }
+    const audience =
+      sessionOwnerUserId === undefined
+        ? accessible
+        : new Set(
+            sessionOwnerUserId !== null && accessible.has(sessionOwnerUserId)
+              ? [ownerUserId, sessionOwnerUserId]
+              : [ownerUserId],
+          );
     const channels = this.channels as ChannelHub;
     for (const userId of audience) {
       channels.peek(userChannelKey(userId))?.publish(event, "server_event");

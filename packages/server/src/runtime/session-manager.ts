@@ -2477,10 +2477,12 @@ export class SessionManager {
     // what those spawn — and the one development mode's list leaves out. Every other parent
     // leaves the marker blank (read as web): the child was spawned by this server's run, not
     // opened through the CLI, whatever opened its parent.
-    const parentClient = this.deps.sessions.findById(entry.sessionId)?.client;
+    const parentRow = this.deps.sessions.findById(entry.sessionId);
+    const rootRow = this.deps.sessions.findById(root);
     this.deps.sessions.insertOrIgnore({
       sessionId: childSid,
       projectId: entry.projectId,
+      ownerUserId: rootRow?.ownerUserId ?? parentRow?.ownerUserId ?? null,
       agentId,
       provider: p.provider,
       modelId: p.model_id,
@@ -2490,9 +2492,9 @@ export class SessionManager {
       approvalMode: "allow-all",
       // The root's policy at registration, so the child row stands on its own if it is ever
       // resumed directly; while registered it follows the root (see rootSessionOf).
-      sandbox: this.deps.sessions.findById(root)?.sandbox ?? null,
+      sandbox: rootRow?.sandbox ?? null,
       title: null,
-      ...(parentClient === "org" ? { client: "org" as const } : {}),
+      ...(parentRow?.client === "org" ? { client: "org" as const } : {}),
       // Its Trace exists by construction.
       hasTrace: true,
       // A subagent's own runs are driven through the PARENT entry's drive, so nothing ever

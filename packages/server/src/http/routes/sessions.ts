@@ -51,7 +51,11 @@ import { withImagesByReference } from "../../services/trace-images.js";
 import { PREVIEW_TOKEN_TTL_MS, resolvePreviewTarget } from "../../services/preview-token.js";
 import type { AppEnv } from "../../auth/middleware.js";
 import type { SessionRow } from "../../db/repos/sessions.js";
-import { assertWorkspaceAllowed } from "../../services/workspace-guard.js";
+import {
+  assertWorkspaceAllowed,
+  assertWorkspaceWithin,
+  ensureUserWorkspace,
+} from "../../services/workspace-guard.js";
 import { isGoalOutcome } from "../../runtime/goal-events.js";
 import { deleteSessionTree } from "../../services/session-deletion.js";
 import type { SessionDeletionDeps } from "../../services/session-deletion.js";
@@ -666,7 +670,8 @@ export function sessionsBatchRoutes(deps: SessionsRouteDeps): Hono<AppEnv> {
 
   app.post("/", async (c) => {
     const projectId = requireValidId(c, "projectId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const project = deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const canViewAll = c.var.user.isAdmin || project.role === "owner";
     const body = await readJson(c);
     const raw = body.requests;
     if (!Array.isArray(raw)) throw badRequest("requests must be an array.");
@@ -683,7 +688,10 @@ export function sessionsBatchRoutes(deps: SessionsRouteDeps): Hono<AppEnv> {
     for (const { agentId, ...options } of wanted) {
       try {
         await deps.agentConfigService.requireExists(projectId, agentId);
-        const out = await deps.sessionService.listSessions(projectId, agentId, options);
+        const out = await deps.sessionService.listSessions(projectId, agentId, {
+          ...options,
+          ...(canViewAll ? {} : { ownerUserId: c.var.user.userId }),
+        });
         results.push({ agentId, ok: true, ...out });
       } catch (err) {
         // An Agent this server does not host answers 404 — an ANSWER (see the sidebar's own
@@ -714,7 +722,8 @@ export function agentSessionsRoutes(deps: SessionsRouteDeps): Hono<AppEnv> {
     // Id validity is checked before any path is constructed: guards against agentId path traversal across Projects.
     const projectId = requireValidId(c, "projectId");
     const agentId = requireValidId(c, "agentId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const project = deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const canViewAll = c.var.user.isAdmin || project.role === "owner";
     await deps.agentConfigService.requireExists(projectId, agentId);
     // Optional order: `created` (the default, newest creation first) or `activity` (most recent
     // lastActiveAt first, ties by id) — the order the sidebar displays, and so the one it pages.
@@ -757,6 +766,7 @@ export function agentSessionsRoutes(deps: SessionsRouteDeps): Hono<AppEnv> {
         ...(rawWorkspaceGroup !== undefined ? { workspaceGroup: rawWorkspaceGroup } : {}),
         ...(rawCounts !== undefined ? { withCounts: true } : {}),
         ...(rawExcludeOrg !== undefined ? { excludeOrg: true } : {}),
+        ...(canViewAll ? {} : { ownerUserId: c.var.user.userId }),
       });
     return c.json({
       sessions,
@@ -770,8 +780,9 @@ export function agentSessionsRoutes(deps: SessionsRouteDeps): Hono<AppEnv> {
   app.post("/", async (c) => {
     const projectId = requireValidId(c, "projectId");
     const agentId = requireValidId(c, "agentId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const project = deps.access.requireProjectAccess(c.var.user.userId, projectId);
     await deps.agentConfigService.requireExists(projectId, agentId);
+    const canUseSharedWorkspace = c.var.user.isAdmin || project.role === "owner";
     const body = await readJson(c);
     const modelId = optionalString(body, "modelId", { minLen: 1, label: "modelId" });
     const provider = optionalString(body, "provider", { minLen: 1, label: "provider" });
@@ -802,10 +813,27 @@ export function agentSessionsRoutes(deps: SessionsRouteDeps): Hono<AppEnv> {
     if (workspace !== undefined) {
       // An explicitly specified Workspace must be an existing directory (never auto-created); reachability is determined by file permissions.
       workspace = await assertWorkspaceAllowed({ workspace });
+      if (!canUseSharedWorkspace) {
+        const privateRoot = await ensureUserWorkspace({
+          root: deps.config.root,
+          projectId,
+          agentId,
+          userId: c.var.user.userId,
+        });
+        workspace = await assertWorkspaceWithin({ workspace, root: privateRoot });
+      }
+    } else if (!canUseSharedWorkspace) {
+      workspace = await ensureUserWorkspace({
+        root: deps.config.root,
+        projectId,
+        agentId,
+        userId: c.var.user.userId,
+      });
     }
     const session = await deps.sessionService.createSession({
       projectId,
       agentId,
+      ownerUserId: c.var.user.userId,
       ...(modelId !== undefined ? { modelId } : {}),
       ...(provider !== undefined ? { provider } : {}),
       ...(workspace !== undefined ? { workspace } : {}),
@@ -835,9 +863,17 @@ export function sessionsRoutes(deps: SessionsRouteDeps): Hono<AppEnv> {
         "Session does not exist or you do not have access.",
       );
     }
+    let project;
     try {
-      deps.access.requireProjectAccess(c.var.user.userId, row.projectId);
+      project = deps.access.requireProjectAccess(c.var.user.userId, row.projectId);
     } catch {
+      throw new HttpError(
+        404,
+        "session_not_found",
+        "Session does not exist or you do not have access.",
+      );
+    }
+    if (!c.var.user.isAdmin && project.role !== "owner" && row.ownerUserId !== c.var.user.userId) {
       throw new HttpError(
         404,
         "session_not_found",
@@ -1009,6 +1045,7 @@ export function sessionsRoutes(deps: SessionsRouteDeps): Hono<AppEnv> {
     const forkRow: SessionRow = {
       sessionId: fork.sessionId,
       projectId: row.projectId,
+      ownerUserId: row.ownerUserId ?? null,
       agentId: row.agentId,
       // The model of the shard the fork was cut in (its session_meta) — the source row's pair
       // is only the model the source runs on NOW, which a switch may have moved since.
@@ -1055,12 +1092,16 @@ export function sessionsRoutes(deps: SessionsRouteDeps): Hono<AppEnv> {
     // Tasks refused with 409 meanwhile, then the files, the row and the bindings — and the
     // subagent children with their parent. Each deleted Session is announced to the Project's
     // users, so every list and every open page drops it.
-    await deleteSessionTree(sessionDeletionDeps(deps), row, (sessionId) =>
-      deps.projectEvents.notifyProjectUsers(row.projectId, {
-        type: "session_deleted",
-        sessionId,
-        projectId: row.projectId,
-      }),
+    await deleteSessionTree(sessionDeletionDeps(deps), row, (sessionId, ownerUserId) =>
+      deps.projectEvents.notifyProjectUsers(
+        row.projectId,
+        {
+          type: "session_deleted",
+          sessionId,
+          projectId: row.projectId,
+        },
+        { sessionOwnerUserId: ownerUserId },
+      ),
     );
     return c.body(null, 204);
   });
@@ -2066,6 +2107,7 @@ export class SessionApiRoutes {
     this.workspaceFilesRoutes = workspaceFilesRoutes({
       access,
       workspaceFiles: this.workspaceFiles,
+      sessionsRepo,
       desktopMode: sessionsDeps.desktopMode,
       fileReveal: this.fileReveal,
     });
@@ -2084,12 +2126,16 @@ export class SessionApiRoutes {
         },
         traceStore: this.traceStore,
         deleteSession: (row) =>
-          deleteSessionTree(deletion, row, (sessionId) =>
-            projectEvents.notifyProjectUsers(row.projectId, {
-              type: "session_deleted",
-              sessionId,
-              projectId: row.projectId,
-            }),
+          deleteSessionTree(deletion, row, (sessionId, ownerUserId) =>
+            projectEvents.notifyProjectUsers(
+              row.projectId,
+              {
+                type: "session_deleted",
+                sessionId,
+                projectId: row.projectId,
+              },
+              { sessionOwnerUserId: ownerUserId },
+            ),
           ),
         statusOf: (sessionId) => manager.statusOf(sessionId),
         notifyProjectUsers: (projectId, event) =>

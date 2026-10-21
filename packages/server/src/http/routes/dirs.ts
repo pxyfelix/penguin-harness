@@ -46,13 +46,16 @@ import { Bind, Component, Use } from "@prismshadow/penguin-core/kernel";
 import { directorySkillsRoutes } from "./directory-skills.js";
 import type { Desktop, DesktopApi } from "../../hmr/capabilities.js";
 import type { Access } from "../../mechanisms/projects.js";
+import type { SessionIndex } from "../../mechanisms/sessions.js";
 import { discoverLocalPlaces, windowsHiddenNames } from "../../services/dir-places.js";
+import { isWithinPath } from "../../services/workspace-guard.js";
 
 /** What this route group reaches — bound by its module (src/modules). */
 export interface DirsRouteDeps {
   access: Access;
   /** The desktop shell's service; null when this server was not started by the desktop shell. */
   desktop: Pick<DesktopApi, "requestFolderAccess"> | null;
+  sessionsRepo: Pick<SessionIndex, "listByProject">;
 }
 
 export function dirsRoutes(deps: DirsRouteDeps): Hono<AppEnv> {
@@ -60,16 +63,34 @@ export function dirsRoutes(deps: DirsRouteDeps): Hono<AppEnv> {
 
   app.get("/", async (c) => {
     const projectId = requireValidId(c, "projectId");
-    deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const project = deps.access.requireProjectAccess(c.var.user.userId, projectId);
+    const canBrowseAll = c.var.user.isAdmin || project.role === "owner";
+    const ownedRoots = canBrowseAll
+      ? []
+      : [
+          ...new Set(
+            deps.sessionsRepo
+              .listByProject(projectId)
+              .filter((row) => row.ownerUserId === c.var.user.userId)
+              .map((row) => path.resolve(row.workspace)),
+          ),
+        ];
 
     // Default starting point: home directory; an explicit path must be absolute (the frontend always sends back the realpath result).
     const raw = c.req.query("path");
-    const requested = normalizeRequestedDir(raw?.trim() ?? "", process.platform);
-    const home = requested === "";
+    const normalized = normalizeRequestedDir(raw?.trim() ?? "", process.platform);
+    if (!canBrowseAll && normalized === "" && ownedRoots.length === 0) {
+      throw new HttpError(404, "dir_not_found", "No private Workspace exists yet.");
+    }
+    const requested = !canBrowseAll && normalized === "" ? ownedRoots[0]! : normalized;
+    const home = canBrowseAll && requested === "";
     // Places answer the home request alone: that is the one the picker makes to build its
     // sidebar, and discovering drives on every folder change would be waste.
-    const places = home && c.req.query("places") === "1";
+    const places = canBrowseAll && home && c.req.query("places") === "1";
     const real = await resolveBrowsableDir(home ? os.homedir() : requested);
+    if (!canBrowseAll && !ownedRoots.some((root) => isWithinPath(real, root))) {
+      throw new HttpError(404, "dir_not_found", `Directory does not exist: ${real}.`);
+    }
 
     let dirents: import("node:fs").Dirent[];
     try {
@@ -93,9 +114,10 @@ export function dirsRoutes(deps: DirsRouteDeps): Hono<AppEnv> {
       .sort((a, b) => a.name.localeCompare(b.name));
 
     const parent = path.dirname(real);
+    const atPrivateRoot = !canBrowseAll && ownedRoots.some((root) => root === real);
     return c.json({
       path: real,
-      parent: parent === real ? null : parent,
+      parent: parent === real || atPrivateRoot ? null : parent,
       entries,
       platform: process.platform,
       // `standardFolders` stays absent when discovery could not ask the machine, so the
@@ -260,10 +282,18 @@ export function normalizeRequestedDir(requested: string, platform: string): stri
 export class ProjectsRoutes {
   @Use() private readonly access!: Access;
   @Use() private readonly desktop!: Desktop;
+  @Use() private readonly sessionsRepo!: SessionIndex;
   @Bind("projects.dirs") dirsRoutes!: Hono<AppEnv>;
   @Bind("projects.dir-skills") dirSkillsRoutes!: Hono<AppEnv>;
   setup() {
-    this.dirsRoutes = dirsRoutes({ access: this.access, desktop: this.desktop.current() });
-    this.dirSkillsRoutes = directorySkillsRoutes({ access: this.access });
+    this.dirsRoutes = dirsRoutes({
+      access: this.access,
+      desktop: this.desktop.current(),
+      sessionsRepo: this.sessionsRepo,
+    });
+    this.dirSkillsRoutes = directorySkillsRoutes({
+      access: this.access,
+      sessionsRepo: this.sessionsRepo,
+    });
   }
 }

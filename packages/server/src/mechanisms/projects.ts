@@ -28,6 +28,7 @@ import type {
   ServerEvent,
 } from "../api/types.js";
 import type { UserRow } from "../db/repos/users.js";
+import type { SessionIndex } from "./sessions.js";
 import type { RawTable, UtilityCompletion } from "../services/project-config-service.js";
 import type {
   ListEndpointModelsOptions,
@@ -270,12 +271,15 @@ export abstract class ModelOAuth {
 }
 
 /**
- * ProjectEvents: the mechanism ProjectNotifier implements — a user-level event to everyone
- * who can see a Project, its owner and its members with GET /api/events open. The runtime
- * publishes a Session's state flips and its generated title this way, and a route
- * publishes a change the list could not otherwise learn of (a rename, a new Session).
+ * ProjectEvents: the mechanism ProjectNotifier implements — a user-level event to the people
+ * who may see its subject. Project-wide events reach every owner/member with GET /api/events
+ * open; a Session event reaches that Session's owner and the Project owner.
  */
 @Interface()
 export abstract class ProjectEvents {
-  abstract notifyProjectUsers(projectId: string, event: ServerEvent): void;
+  abstract notifyProjectUsers(
+    projectId: string,
+    event: ServerEvent,
+    opts?: { sessionOwnerUserId?: string | null },
+  ): void;
 }

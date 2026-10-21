@@ -215,12 +215,11 @@ describe("the archive page", () => {
     await seedEveryKind(w);
     const body = await groups(w.owner);
     expect(body.groups.map((g) => [g.projectId, g.projectName, g.workspace, g.count])).toEqual([
-      [w.p2, w.names.peer, "/tmp/arch-ws-c", 1],
       [w.p1, w.names.owner, "/tmp/arch-ws-b", 2],
       [w.p1, w.names.owner, "temp", 1],
       [w.p1, w.names.owner, "/tmp/arch-ws-a", 2],
     ]);
-    expect(body.total).toBe(6);
+    expect(body.total).toBe(5);
   });
 
   it("pages a group's rows newest first by cursor, each row exactly once", async () => {
@@ -304,7 +303,7 @@ describe("the archive page", () => {
     expect(await counted("?source=user")).toEqual([[w.p1, "/tmp/arch-ws-a", 1]]);
     expect(await counted("?source=schedule")).toEqual([[w.p1, "temp", 1]]);
     expect(await counted("?source=api")).toEqual([[w.p1, "/tmp/arch-ws-b", 1]]);
-    expect(await counted(`?projectId=${w.p2}`)).toEqual([[w.p2, "/tmp/arch-ws-c", 1]]);
+    expect(await counted(`?projectId=${w.p2}`)).toEqual([]);
   });
 
   it("unarchives by id into the sidebar's list, for good; counts only archived rows and reports what the user cannot open", async () => {
@@ -329,10 +328,10 @@ describe("the archive page", () => {
     await t.deps.manager.startTask(ids.cliA, [userText("again")]);
     await waitFor(() => t.deps.manager.statusOf(ids.cliA) === "idle");
     expect(await activeIds(w.owner, w.p1)).toContain(ids.cliA);
-    // The peer's Session the owner may open is unarchived the same way.
+    // Access to the peer's Project does not expose the peer member's Session.
     expect(await batch(w.owner, "unarchive", { sessionIds: [ids.peerCli] })).toEqual({
-      done: 1,
-      missing: [],
+      done: 0,
+      missing: [ids.peerCli],
     });
   });
 
@@ -492,7 +491,7 @@ describe("the archive page", () => {
     }
   });
 
-  it("tells the Project's owner and members about each change, and nobody else", async () => {
+  it("tells the Project owner about unowned Sessions, and no ordinary member", async () => {
     const w = await worldWithPeer();
     const boxes = {
       owner: inbox(w.names.owner),
@@ -505,26 +504,25 @@ describe("the archive page", () => {
     await w.owner.patch(`/api/sessions/${parent}`, { archived: true });
     await batch(w.owner, "unarchive", { sessionIds: [cli] });
     await batch(w.owner, "delete", { sessionIds: [parent] });
-    for (const who of ["owner", "peer"] as const) {
-      expect(listingEvents(boxes[who]), who).toEqual([
-        {
-          type: "session_archived",
-          sessionId: parent,
-          projectId: w.p1,
-          agentId: AGENT,
-          archived: true,
-        },
-        {
-          type: "session_archived",
-          sessionId: cli,
-          projectId: w.p1,
-          agentId: AGENT,
-          archived: false,
-        },
-        { type: "session_deleted", sessionId: child, projectId: w.p1 },
-        { type: "session_deleted", sessionId: parent, projectId: w.p1 },
-      ]);
-    }
+    expect(listingEvents(boxes.owner)).toEqual([
+      {
+        type: "session_archived",
+        sessionId: parent,
+        projectId: w.p1,
+        agentId: AGENT,
+        archived: true,
+      },
+      {
+        type: "session_archived",
+        sessionId: cli,
+        projectId: w.p1,
+        agentId: AGENT,
+        archived: false,
+      },
+      { type: "session_deleted", sessionId: child, projectId: w.p1 },
+      { type: "session_deleted", sessionId: parent, projectId: w.p1 },
+    ]);
+    expect(listingEvents(boxes.peer)).toEqual([]);
     expect(listingEvents(boxes.stranger)).toEqual([]);
   });
 
