@@ -58,6 +58,7 @@ const FEEDBACK_DIRS = [
   "conflicts",
   "reviews",
   "decisions",
+  "imports",
   "memory-packs",
   "quarantine",
   "tools",

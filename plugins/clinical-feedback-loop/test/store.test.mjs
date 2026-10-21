@@ -27,6 +27,7 @@ test("initializes the feedback layout", async (t) => {
     "clusters",
     "conflicts",
     "decisions",
+    "imports",
     "inbox",
     "memory-packs",
     "normalized",
