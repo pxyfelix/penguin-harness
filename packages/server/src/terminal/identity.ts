@@ -14,13 +14,15 @@ import { SESSION_COOKIE } from "../auth/middleware.js";
 
 export interface IdentifiedUser {
   userId: string;
+  /** The server terminal plane is administrator-only until terminals are sandboxed. */
+  isAdmin: boolean;
 }
 
 export type Identity = (request: Request) => Promise<IdentifiedUser | null>;
 
 /** What the resolver needs of the claimed AuthService — the member the handshake verifies. */
 export interface AuthenticatesSessions {
-  authenticateWithMeta(token: string): { user: { userId: string } } | null;
+  authenticateWithMeta(token: string): { user: { userId: string; isAdmin: boolean } } | null;
 }
 
 /** The session cookie out of a raw Cookie header (the seam hands over a plain Request). */
@@ -45,6 +47,6 @@ export function identityFrom(auth: AuthenticatesSessions | null): Identity {
   return async (request) => {
     const token = readSessionCookie(request.headers.get("cookie"));
     const authed = token === null ? null : auth.authenticateWithMeta(token);
-    return authed === null ? null : { userId: authed.user.userId };
+    return authed === null ? null : { userId: authed.user.userId, isAdmin: authed.user.isAdmin };
   };
 }

@@ -353,7 +353,7 @@ describePty("terminal API", () => {
     }
   });
 
-  it("does not expose one user's terminal to another", async () => {
+  it("does not expose the admin terminal plane to an ordinary member", async () => {
     const t = await createTestApp();
     try {
       const admin = await loginAdmin(t.app);
@@ -365,12 +365,11 @@ describePty("terminal API", () => {
       const other = await provisionUser(t.app, "someoneelse");
       const otherApi = apiClient(t.app, other.cookie);
 
-      // 404, not 403: a terminal id belonging to someone else must not be confirmable.
-      expect((await otherApi.get(`/api/terminals/${terminal.id}`)).status).toBe(404);
-      expect(
-        ((await (await otherApi.get("/api/terminals")).json()) as { terminals: unknown[] })
-          .terminals,
-      ).toHaveLength(0);
+      // Terminals run outside the Agent sandbox and therefore stay an admin surface until a
+      // per-terminal bwrap exists. A member cannot confirm or interact with one at all.
+      expect((await otherApi.get(`/api/terminals/${terminal.id}`)).status).toBe(403);
+      expect((await otherApi.get("/api/terminals")).status).toBe(403);
+      expect((await otherApi.post("/api/terminals", { cwd: "~" })).status).toBe(403);
     } finally {
       await t.cleanup();
     }

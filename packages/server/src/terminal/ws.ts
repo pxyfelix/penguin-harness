@@ -58,6 +58,7 @@ export function attachTerminalWebSocket(server: HttpServer, deps: TerminalWebSoc
     const token = readCookie(req.headers.cookie, SESSION_COOKIE);
     const authed = token ? deps.authService.authenticateWithMeta(token) : null;
     if (!authed) return refuse(socket, 401, "Unauthorized");
+    if (!authed.user.isAdmin) return refuse(socket, 403, "Forbidden");
 
     // The platform may be mid-swap; ensure() resolves the instance that owns the
     // terminals right now, which is also the one whose protocol should serve this socket.

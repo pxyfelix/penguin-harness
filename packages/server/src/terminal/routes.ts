@@ -108,6 +108,17 @@ export function terminalRoutes(manager: TerminalManager, identity: Identity): Ho
     if (user === null) {
       return json({ error: { code: "unauthorized", message: "Not signed in." } }, 401);
     }
+    if (!user.isAdmin) {
+      return json(
+        {
+          error: {
+            code: "admin_required",
+            message: "Server terminals are available to administrators only.",
+          },
+        },
+        403,
+      );
+    }
     c.set("user", user);
     await next();
   };
