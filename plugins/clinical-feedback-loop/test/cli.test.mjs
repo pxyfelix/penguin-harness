@@ -28,6 +28,22 @@ test("runs init, capture, list, CSV import and review from the CLI", async (t) =
     ok: true,
     initialized: true,
   });
+  const projectCli = path.join(
+    root,
+    "pilot",
+    "feedback",
+    "tools",
+    "feedback-cli.mjs",
+  );
+  const reinitialized = await execFileAsync(
+    process.execPath,
+    [projectCli, "init", "--root", root, "--project", "pilot"],
+    { encoding: "utf8", cwd: root },
+  );
+  assert.deepEqual(JSON.parse(reinitialized.stdout), {
+    ok: true,
+    initialized: true,
+  });
 
   const issueFile = path.join(root, "issue.json");
   await writeFile(
@@ -82,4 +98,30 @@ test("uses PENGUIN_HOME and PENGUIN_PROJECT_ID defaults", async (t) => {
     }),
   );
   assert.deepEqual(result, { ok: true, initialized: true });
+});
+
+test("captures into a workspace-local staging store", async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), "clinical-cli-store-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const store = path.join(root, "feedback-staging");
+  const issueFile = path.join(root, "issue.json");
+  await writeFile(
+    issueFile,
+    JSON.stringify({
+      source: "agent_capture",
+      user_id: "user-a",
+      agent_id: "sap_author",
+      session_id: "session-a",
+      capability: "sap-authoring",
+      observed: "Workspace-local issue",
+      expected: "Workspace-local expected",
+      severity: "high",
+    }),
+    "utf8",
+  );
+  const result = JSON.parse(
+    await run(["capture", "--store", store, "--project", "pilot", "--input", issueFile]),
+  );
+  assert.equal(result.created, true);
+  assert.match(result.file.replaceAll("\\", "/"), /feedback-staging\/inbox\/user-a\//);
 });

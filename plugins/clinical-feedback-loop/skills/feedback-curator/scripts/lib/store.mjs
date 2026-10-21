@@ -15,6 +15,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { parseCsv } from "./csv.mjs";
@@ -117,14 +118,18 @@ function stableJson(value) {
 
 export function resolveContext(options = {}, env = process.env) {
   const root = options.root ?? env.PENGUIN_HOME;
-  const project = options.project ?? env.PENGUIN_PROJECT_ID;
-  if (!root) throw new Error("root is required (or set PENGUIN_HOME).");
+  const project = options.project ?? env.PENGUIN_PROJECT_ID ?? "feedback-staging";
   if (!project) throw new Error("project is required (or set PENGUIN_PROJECT_ID).");
   segment(project, "project");
-  const projectDir = path.resolve(root, project);
-  const feedbackDir = path.join(projectDir, "feedback");
+  const feedbackDir = options.store
+    ? path.resolve(options.store)
+    : (() => {
+        if (!root) throw new Error("root is required (or set PENGUIN_HOME).");
+        return path.join(path.resolve(root, project), "feedback");
+      })();
+  const projectDir = options.store ? path.dirname(feedbackDir) : path.resolve(root, project);
   return {
-    root: path.resolve(root),
+    root: root ? path.resolve(root) : path.dirname(projectDir),
     project,
     projectDir,
     feedbackDir,
@@ -344,15 +349,26 @@ export async function importCsv(ctx, rows, options, now = new Date()) {
 
 export async function convertXlsxToCsv(file, tempDir) {
   const absolute = path.resolve(file);
-  await execFileAsync("libreoffice", [
+  const profile = path.join(tempDir, "libreoffice-profile");
+  const result = await execFileAsync("libreoffice", [
+    `-env:UserInstallation=${pathToFileURL(profile).href}`,
     "--headless",
+    "--nologo",
+    "--nodefault",
+    "--nofirststartwizard",
     "--convert-to",
     "csv",
     "--outdir",
     tempDir,
     absolute,
   ]);
-  return path.join(tempDir, `${path.basename(absolute, path.extname(absolute))}.csv`);
+  const csvName = (await readdir(tempDir)).find((name) => name.endsWith(".csv"));
+  if (!csvName) {
+    throw new Error(
+      `LibreOffice did not create a CSV file. stdout=${result.stdout} stderr=${result.stderr}`,
+    );
+  }
+  return path.join(tempDir, csvName);
 }
 
 export async function importExcel(ctx, file, options, deps = {}, now = new Date()) {
@@ -364,6 +380,50 @@ export async function importExcel(ctx, file, options, deps = {}, now = new Date(
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+async function stagedFeedbackDirs(projectDir) {
+  const agentsDir = path.join(projectDir, "agents");
+  let entries;
+  try {
+    entries = await readdir(agentsDir, { recursive: true, withFileTypes: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+  return entries
+    .filter((entry) => entry.isDirectory() && entry.name === "feedback-staging")
+    .map((entry) => path.join(entry.parentPath, entry.name));
+}
+
+export async function syncStagedFeedback(ctx, options = {}) {
+  if (!options.projectDir) throw new Error("projectDir is required.");
+  const projectDir = path.resolve(options.projectDir);
+  let imported = 0;
+  let duplicate = 0;
+  let invalid = 0;
+  for (const stagedDir of await stagedFeedbackDirs(projectDir)) {
+    const inboxDir = path.join(stagedDir, "inbox");
+    let entries;
+    try {
+      entries = await readdir(inboxDir, { recursive: true, withFileTypes: true });
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
+      throw error;
+    }
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      try {
+        const report = JSON.parse(await readFile(path.join(entry.parentPath, entry.name), "utf8"));
+        const result = await captureIssue(ctx, report);
+        if (result.created) imported += 1;
+        else duplicate += 1;
+      } catch {
+        invalid += 1;
+      }
+    }
+  }
+  return { imported, duplicate, invalid };
 }
 
 async function scanJsonDir(dir, validate) {

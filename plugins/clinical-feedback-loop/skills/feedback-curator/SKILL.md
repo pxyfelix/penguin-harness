@@ -33,20 +33,28 @@ CLI="$PROJECT_DIR/feedback/tools/feedback-cli.mjs"
 
 Process only the requested seven-day window.
 
-1. Import every new workbook under `feedback/imports/` with `import-excel`. Pass the importing
+1. Collect reports staged by tested Agents:
+
+```bash
+node "$CLI" sync-staged --project-dir "${PENGUIN_HOME}/${PENGUIN_PROJECT_ID}"
+```
+
+This is necessary because normal Agent sessions may write only their Workspace and scratchpad.
+
+2. Import every new workbook under `feedback/imports/` with `import-excel`. Pass the importing
    colleague's `--user-id` and test round when known.
-2. Run:
+3. Run:
 
 ```bash
 node "$CLI" review --from YYYY-MM-DD --to YYYY-MM-DD
 ```
 
-3. Read `packet.json`, `packet.md` and `reports.jsonl`.
-4. Create Issue Clusters in `feedback/clusters/<id>.json`. Merge only reports with the same
+4. Read `packet.json`, `packet.md` and `reports.jsonl`.
+5. Create Issue Clusters in `feedback/clusters/<id>.json`. Merge only reports with the same
    capability, artifact or workflow step, failure mode, and likely root category.
-5. Create Conflict Groups in `feedback/conflicts/<id>.json` when claims cannot all apply. Preserve
+6. Create Conflict Groups in `feedback/conflicts/<id>.json` when claims cannot all apply. Preserve
    every side and its evidence; do not use majority vote.
-6. Never use `source: rsi_eval` as colleague experience.
+7. Never use `source: rsi_eval` as colleague experience.
 
 Cluster ids start with `FC-`; conflict ids start with `CF-`. Keep their schemas in
 `feedback/tools/schemas/`.

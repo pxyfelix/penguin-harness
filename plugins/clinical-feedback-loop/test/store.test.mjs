@@ -9,6 +9,7 @@ import {
   initStore,
   listIssues,
   resolveContext,
+  syncStagedFeedback,
 } from "../skills/feedback-curator/scripts/lib/store.mjs";
 
 async function fixture(t) {
@@ -119,4 +120,34 @@ test("lists valid reports and quarantines malformed JSON", async (t) => {
   assert.equal(listing.reports.length, 1);
   assert.equal(listing.invalid.length, 1);
   assert.match(listing.invalid[0], /broken\.json$/);
+});
+
+test("collects feedback staged inside Agent workspaces", async (t) => {
+  const { root, ctx } = await fixture(t);
+  const workspace = path.join(root, "pilot", "agents", "sap_author", "workspaces", "tmp-1");
+  const staged = resolveContext(
+    { store: path.join(workspace, "feedback-staging"), project: "pilot" },
+    {},
+  );
+  await initStore(staged);
+  await captureIssue(staged, {
+    source: "agent_capture",
+    user_id: "user-a",
+    agent_id: "sap_author",
+    session_id: "session-1",
+    capability: "sap-authoring",
+    observed: "Staged issue",
+    expected: "Staged expected",
+    severity: "high",
+  });
+  const result = await syncStagedFeedback(ctx, {
+    projectDir: path.join(root, "pilot"),
+  });
+  assert.deepEqual(result, { imported: 1, duplicate: 0, invalid: 0 });
+  assert.equal((await listIssues(ctx)).reports.length, 1);
+  assert.deepEqual(await syncStagedFeedback(ctx, { projectDir: path.join(root, "pilot") }), {
+    imported: 0,
+    duplicate: 1,
+    invalid: 0,
+  });
 });

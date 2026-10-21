@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cp, copyFile, mkdir, readFile } from "node:fs/promises";
+import { access, cp, copyFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +13,7 @@ import {
   listIssues,
   publishMemoryPack,
   resolveContext,
+  syncStagedFeedback,
 } from "./lib/store.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -44,6 +45,7 @@ function contextFrom(options) {
     {
       root: options.root,
       project: options.project,
+      store: options.store,
     },
     process.env,
   );
@@ -75,18 +77,35 @@ async function copyTreeIfDifferent(source, target) {
   await cp(source, target, { recursive: true, force: true });
 }
 
+async function firstExistingDirectory(candidates) {
+  for (const candidate of candidates) {
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // Try the next installed layout.
+    }
+  }
+  throw new Error(`Required plugin directory not found: ${candidates.join(" or ")}`);
+}
+
 async function init(ctx) {
   await initStore(ctx);
+  const templates = await firstExistingDirectory([
+    path.join(scriptDir, "templates"),
+    path.join(skillRoot, "templates"),
+  ]);
+  const schemas = await firstExistingDirectory([
+    path.join(scriptDir, "schemas"),
+    path.join(skillRoot, "schemas"),
+  ]);
   await copyIfDifferent(
     path.join(scriptDir, "feedback-cli.mjs"),
     path.join(ctx.toolsDir, "feedback-cli.mjs"),
   );
   await copyTreeIfDifferent(path.join(scriptDir, "lib"), path.join(ctx.toolsDir, "lib"));
-  await copyTreeIfDifferent(
-    path.join(skillRoot, "templates"),
-    path.join(ctx.toolsDir, "templates"),
-  );
-  await copyTreeIfDifferent(path.join(skillRoot, "schemas"), path.join(ctx.toolsDir, "schemas"));
+  await copyTreeIfDifferent(templates, path.join(ctx.toolsDir, "templates"));
+  await copyTreeIfDifferent(schemas, path.join(ctx.toolsDir, "schemas"));
   return { ok: true, initialized: true };
 }
 
@@ -125,6 +144,13 @@ async function importExcelCommand(ctx, options) {
     userId: options["user-id"],
     testRound: options["test-round"],
   });
+}
+
+async function syncStagedCommand(ctx, options) {
+  const projectDir =
+    options["project-dir"] ??
+    path.join(process.env.PENGUIN_HOME ?? "", process.env.PENGUIN_PROJECT_ID ?? "");
+  return syncStagedFeedback(ctx, { projectDir });
 }
 
 async function review(ctx, options) {
@@ -168,6 +194,9 @@ async function main() {
     case "import-excel":
       result = await importExcelCommand(ctx, options);
       break;
+    case "sync-staged":
+      result = await syncStagedCommand(ctx, options);
+      break;
     case "review":
       result = await review(ctx, options);
       break;
@@ -183,7 +212,7 @@ async function main() {
       break;
     default:
       throw new Error(
-        "Usage: feedback-cli.mjs <init|capture|list|import-csv|import-excel|review|publish|active> [options]",
+        "Usage: feedback-cli.mjs <init|capture|list|import-csv|import-excel|sync-staged|review|publish|active> [options]",
       );
   }
   process.stdout.write(`${JSON.stringify(result, null, options.json ? 0 : 2)}\n`);

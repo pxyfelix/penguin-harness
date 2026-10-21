@@ -40,14 +40,20 @@ Do not record small talk, explored alternatives, or the Agent's own guess.
 Allowed capability labels are `CRF Review`, `SAP`, `Table Shell`, `Workflow` and `Other`.
 Allowed severities are `Blocker`, `High`, `Normal` and `Low`.
 
-4. Run the Project-local CLI:
+4. Run the Project-local CLI against a staging store inside the current writable Workspace:
 
 ```bash
 PROJECT_DIR="${PENGUIN_HOME}/${PENGUIN_PROJECT_ID}"
-node "$PROJECT_DIR/feedback/tools/feedback-cli.mjs" capture --input <scratchpad-json>
+node "$PROJECT_DIR/feedback/tools/feedback-cli.mjs" capture \
+  --store "$PWD/feedback-staging" \
+  --project "$PENGUIN_PROJECT_ID" \
+  --input <scratchpad-json>
 ```
 
 5. Return the resulting feedback id and file path.
+
+The Project feedback directory is intentionally not writable from a normal Agent session. The
+weekly curator collects `feedback-staging` from Agent workspaces into the central store.
 
 ## Boundaries
 
