@@ -1,0 +1,46 @@
+{
+  "name": "@penguinharness/clinical-feedback-loop",
+  "version": "0.2.16",
+  "description": "Capture colleague feedback, import minimal Excel sheets, curate issue clusters and conflicts, and publish approved read-only memory packs.",
+  "keywords": [
+    "penguin-plugin",
+    "penguinharness",
+    "skills",
+    "feedback",
+    "memory"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Prism-Shadow/penguin-harness.git",
+    "directory": "plugins/clinical-feedback-loop"
+  },
+  "files": [
+    "icon.svg",
+    "skills",
+    "scripts",
+    "schemas",
+    "test",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "penguin": {
+    "description_zh": "收集同事反馈，导入极简 Excel，整理问题聚类与冲突，并把管理员批准的内容发布成只读、带版本的 Memory Pack。",
+    "short_description": "Capture feedback and publish reviewed read-only memory packs.",
+    "short_description_zh": "收集反馈并发布审核后的只读记忆包。",
+    "category": "office-productivity",
+    "icon": "icon.svg",
+    "preinstall": false,
+    "quick_start": {
+      "prompt": "Initialize the clinical feedback store for this Project, then explain which Agent receives feedback-capture, feedback-curator and curated-memory-reader.",
+      "prompt_zh": "为这个 Project 初始化临床反馈目录，再说明哪个 Agent 应安装 feedback-capture、feedback-curator 和 curated-memory-reader。"
+    },
+    "title": "Clinical Feedback Loop",
+    "title_zh": "临床反馈闭环"
+  }
+}
