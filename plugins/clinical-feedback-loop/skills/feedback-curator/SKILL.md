@@ -1,7 +1,7 @@
 ---
 name: feedback-curator
 description: Use when importing colleague feedback, clustering issue reports, resolving duplicate or conflicting reports, preparing a weekly review, or publishing an approved Memory Pack.
-version: 2026.10.21.1
+version: 2026.10.21.2
 ---
 
 # Feedback Curator

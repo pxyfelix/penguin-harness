@@ -2,7 +2,7 @@
 
 日期：2026-10-21
 
-状态：设计已确认；测试环境已部分实施，反馈与定时记忆闭环待实施
+状态：设计已确认；V0 反馈与定时记忆闭环已实施并验证
 
 ## 摘要
 
@@ -81,14 +81,45 @@ Agent 执行的 `penguin` 命令被 Node 当成 JavaScript 解析。
 - `7365/login` 返回 HTTP `200`；
 - `penguin agent ls --json --project-id clinical_capability_pilot` 正常返回 5 个 Agent。
 
+### V0 反馈闭环
+
+`clinical-feedback-loop` 插件已加入 fork，并安装到测试 Project：
+
+- `feedback-capture` `2026.10.21.2` 装在被测 Agent。
+- `feedback-curator` `2026.10.21.2` 装在 `default_agent`。
+- `curated-memory-reader` `2026.10.21.1` 装在全部 Agent。
+- 六列 Excel 模板、Issue/Cluster/Conflict/Memory Pack Schema 和分类字典已生成。
+- 反馈目录包含 `inbox`、`normalized`、`clusters`、`conflicts`、`reviews`、`decisions`、
+  `memory-packs`、`quarantine`、`imports` 和 `tools`。
+- 每周任务 `weekly-feedback-curation` 已激活，首次触发为 2026-10-26 02:00 Asia/Shanghai。
+- Curator 的 Schedule Workspace 固定为中心 `feedback/`，因此可以写审核产物；普通 Agent
+  仍然只能写自己的 Workspace。
+
+普通 Agent 的 Session 不能直接写 Project 根目录。实际实现采用两阶段写入：
+
+1. `feedback-capture` 把报告写到当前 Workspace 的 `feedback-staging/inbox/`。
+2. Curator 运行 `sync-staged`，从 Agent Workspaces 汇总到中心 `feedback/inbox/`。
+
+这样保留了现有沙箱边界，没有把 Project 根目录开放为普通成员可写。
+
+### V0 验证结果
+
+- Agent 在明确要求记录反馈时自动读取 `feedback-capture`。
+- 报告成功记录用户、Agent、Session、能力、现象、期望、证据和严重度。
+- 写入前后 Memory 文件数量和 Skill 文件哈希不变。
+- 真实 XLSX 经 LibreOffice Calc 转换后导入 2 行；第二次导入为 0 新增、2 重复。
+- `sync-staged` 首次导入 1 条，后续运行识别 1 条重复。
+- General Agent 对 5 条测试反馈生成 3 个 Issue Cluster、1 个 Conflict Group、审核包和
+  候选 Memory Pack。
+- SAP 冲突没有生成 Memory Candidate；候选 Pack 保持未发布。
+- 未创建 `active-memory-pack.json`，因此测试内容没有进入 Agent 上下文。
+
 ### 尚未实施
 
-- `feedback-capture`、`feedback-curator` 和 `curated-memory-reader` 三个 Skill。
-- 极简 Excel 模板、Issue Report Schema 和反馈目录。
-- 每周整理任务与 Memory Pack 发布。
-- 可选的反馈管理 UI 和原生只读 Memory 模式。
-- CRF Review 与 Table Shell 的首批正式题目。
-- SAP Baseline 目前仍在旧 Project；尚未迁移到新的测试 Project。
+- 管理员反馈管理 UI。
+- 原生 `memory.mode = curated_read_only`。
+- CRF Review 与 Table Shell 的首批正式 Benchmark。
+- SAP Benchmark 仍在旧 Project，尚未迁移到新测试 Project。
 
 ## 目标
 
@@ -524,10 +555,10 @@ proposed_target: skill
 | 测试 Project、业务 Agent 与用户接入 | 已完成 | `clinical_capability_pilot` 可登录并隔离 |
 | 业务 Agent 长期 Memory 关闭 | 已完成 | 5 个 Agent 均为 `memory.enabled: false` |
 | Lead 委派协议与回归 Benchmark | 已完成 | Skill `2026.10.21.2`，Benchmark `lead-delegation` |
-| 反馈采集、Excel 导入、聚类与冲突处理 | 待实施 | 尚无 `clinical-feedback-loop` 插件 |
-| 每周整理和只读 Memory Pack 发布 | 待实施 | 尚无定时整理任务与 Pack |
+| 反馈采集、Excel 导入、聚类与冲突处理 | 已完成 | 插件、单元测试和真实样例已验证 |
+| 每周整理和只读 Memory Pack 发布 | 已完成 | 周任务已激活，候选 Pack 已生成；发布需管理员批准 |
 | CRF、SAP、Table Shell 初始 Benchmark | 部分完成 | 已有一个 SAP Benchmark 和 Lead 回归题；其余待建 |
 | 管理员反馈 UI 与原生只读 Memory | 后续 | 不进入第一轮实施 |
 
-下一步只实施 `clinical-feedback-loop` 插件、极简 Excel、反馈/聚类目录和每周审核包。
-Memory Pack 的自动发布、反馈 UI 和原生 `memory.mode` 留到后续阶段。
+下一步由管理员裁决当前 `CF-SAP-001` 冲突，并决定是否批准候选 Pack。反馈 UI、
+原生 `memory.mode` 和正式业务 Benchmark 留到后续阶段。

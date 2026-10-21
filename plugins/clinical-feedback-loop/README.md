@@ -5,6 +5,9 @@ This plugin implements the test-stage feedback loop described in
 
 ## Installation
 
+The host needs LibreOffice with the Calc component (`libreoffice-calc` on Ubuntu) for direct
+`.xlsx` import. CSV import works without it.
+
 1. Install `feedback-capture` on every tested Agent.
 2. Install `feedback-curator` on the General Agent.
 3. Install `curated-memory-reader` on every Agent that should use approved knowledge.

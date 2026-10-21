@@ -1,7 +1,7 @@
 ---
 name: feedback-capture
 description: Use when a user explicitly reports, corrects, rejects, or asks to record a problem in an Agent deliverable or workflow.
-version: 2026.10.21.1
+version: 2026.10.21.2
 ---
 
 # Feedback Capture

@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+Status: implemented and verified on 2026-10-21; test candidates await administrator review.
+
 **Goal:** Implement the first two stages of the approved clinical feedback design: low-friction feedback capture, Excel import, clustering inputs, conflict records, weekly review packets, and a versioned read-only Memory Pack.
 
 **Architecture:** Ship a `clinical-feedback-loop` plugin containing three skills. Its curator skill carries a dependency-free Node CLI plus an Excel template and schemas. The CLI installs a self-contained copy of itself into each Project's `feedback/tools/` directory; every Agent skill invokes that Project-local copy, so installed skills never depend on plugin-cache paths.

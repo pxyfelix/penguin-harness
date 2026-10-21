@@ -28,13 +28,7 @@ test("runs init, capture, list, CSV import and review from the CLI", async (t) =
     ok: true,
     initialized: true,
   });
-  const projectCli = path.join(
-    root,
-    "pilot",
-    "feedback",
-    "tools",
-    "feedback-cli.mjs",
-  );
+  const projectCli = path.join(root, "pilot", "feedback", "tools", "feedback-cli.mjs");
   const reinitialized = await execFileAsync(
     process.execPath,
     [projectCli, "init", "--root", root, "--project", "pilot"],
