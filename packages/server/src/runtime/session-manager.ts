@@ -79,6 +79,7 @@ import type { RecallableFile } from "../services/task-attachments.js";
 import { cliShimDir } from "../services/cli-shim.js";
 import { HttpError, isMissingCredential, modelCredentialMissing } from "../http/errors.js";
 import type { SessionRow } from "../db/repos/sessions.js";
+import { tightenSandboxToCeiling } from "../services/sandbox-ceiling.js";
 import { ApprovalRegistry, makeApprove } from "./approvals.js";
 import { goalOutcomeOf, goalProgressOf } from "./goal-events.js";
 import type { Approvals, PendingApproval } from "./approvals.js";
@@ -96,6 +97,7 @@ import type { ClassCtx, Json, Opaque } from "@prismshadow/penguin-core/kernel";
 import { Sandbox, SandboxModule } from "../sandbox/service.js";
 import { SANDBOX_GROUP } from "../sandbox/settings-store.js";
 import { sandboxEnabledOf, sandboxPresetsOf, sandboxStartOf } from "../sandbox/settings-policy.js";
+import { tenantIsolationMaskPaths } from "../sandbox/tenant-isolation.js";
 import { PluginConfig } from "../plugin/config.js";
 import { SessionService } from "../services/session-service.js";
 import { ModelScopeAuth } from "../services/modelscope-auth-service.js";
@@ -104,7 +106,7 @@ import { loopbackHostRoles } from "../services/preview-token.js";
 import { agentNoProxy } from "../net/proxy.js";
 import type { SandboxService } from "../sandbox/service.js";
 import type { AuthState, Channels, Clock, Config, Log } from "../hmr/capabilities.js";
-import type { ProjectConfigStore, ProjectEvents } from "../mechanisms/projects.js";
+import type { ProjectConfigStore, ProjectEvents, Projects } from "../mechanisms/projects.js";
 import type { AgentState, SessionIndex, SessionOrigins } from "../mechanisms/sessions.js";
 import type { Errors, UsageRecording } from "../mechanisms/observability.js";
 import type { TraceIndex, TraceIndexStore } from "../mechanisms/traces.js";
@@ -2772,6 +2774,7 @@ export class SessionsModule {
   @Use() private readonly errors!: Errors;
   @Use() private readonly modelScopeAuth!: ModelScopeAuth;
   @Use() private readonly projectConfig!: ProjectConfigStore;
+  @Use() private readonly projects!: Projects;
   @Use() private readonly traceIndex!: TraceIndex;
   @Use() private readonly traceStore!: TraceIndexStore;
   @Use(SandboxModule) private readonly sandbox!: Sandbox;
@@ -2793,6 +2796,7 @@ export class SessionsModule {
     const recorder = this.recorder;
     const errors = this.errors;
     const projectConfig = this.projectConfig;
+    const projects = this.projects;
     const sandbox = this.sandbox as SandboxService;
     const pluginConfig = this.pluginConfig;
     const orgCache = this.orgCache;
@@ -2856,15 +2860,36 @@ export class SessionsModule {
       // Each Session confines under its OWN policy — the snapshot on its row, its root's for a
       // subagent — so a settings change reaches only Sessions created after it. A row from
       // before snapshots takes the settings at its first command and keeps them from then on.
-      confineSpawn: (ctx: ControlEnvContext) =>
-        sandbox.confinerFor(() => {
-          const root = manager.rootSessionOf(ctx.sessionId);
+      confineSpawn: (ctx: ControlEnvContext) => {
+        const root = manager.rootSessionOf(ctx.sessionId);
+        const isMemberSession = (row: SessionRow | null): boolean => {
+          if (!row?.ownerUserId) return false;
+          const project = projects.findById(row.projectId);
+          return project !== null && project.ownerUserId !== row.ownerUserId;
+        };
+        const isolationMasks = (opts: Parameters<SpawnConfiner>[1]): readonly string[] => {
           const row = sessionsRepo.findById(root);
-          if (row?.sandbox) return row.sandbox;
+          if (row === null || !isMemberSession(row)) return [];
+          return tenantIsolationMaskPaths({
+            dataRoot: config.root,
+            projectId: row.projectId,
+            agentId: row.agentId,
+            workspace: opts.workspaceDir,
+            ...(opts.scratchpadDir !== undefined ? { scratchpad: opts.scratchpadDir } : {}),
+          });
+        };
+        return sandbox.confinerFor(() => {
+          const row = sessionsRepo.findById(root);
+          if (row?.sandbox) {
+            return isMemberSession(row)
+              ? tightenSandboxToCeiling(row.sandbox, sandbox.currentSettings())
+              : row.sandbox;
+          }
           const snapshot = sandbox.currentSettings();
           if (row !== null) sessionsRepo.updateSandbox(root, snapshot);
           return snapshot;
-        }),
+        }, isolationMasks);
+      },
     };
 
     const notifyProjectUsers = (projectId: string, event: ServerEvent): void =>

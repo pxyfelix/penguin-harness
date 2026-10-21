@@ -37,3 +37,33 @@ export function aboveSandboxCeiling(
   }
   return null;
 }
+
+/**
+ * An existing Session's policy tightened to a ceiling that may have changed since the row
+ * was created. Member Sessions use this at every spawn: a policy stored before a ceiling
+ * was saved may never outlive that new ceiling.
+ */
+export function tightenSandboxToCeiling(
+  policy: SandboxSettings,
+  ceiling: SandboxSettings,
+): SandboxSettings {
+  const mode =
+    SANDBOX_MODE_RANK[policy.mode] > SANDBOX_MODE_RANK[ceiling.mode] ? ceiling.mode : policy.mode;
+  const policyNetwork = policy.network ?? "open";
+  const ceilingNetwork = ceiling.network ?? "open";
+  const network =
+    SANDBOX_NETWORK_RANK[policyNetwork] > SANDBOX_NETWORK_RANK[ceilingNetwork]
+      ? ceilingNetwork
+      : policyNetwork;
+  const maskPaths = [...new Set([...(policy.maskPaths ?? []), ...(ceiling.maskPaths ?? [])])];
+  const writableTemp =
+    policy.writableTemp === false || ceiling.writableTemp === false
+      ? false
+      : (policy.writableTemp ?? ceiling.writableTemp);
+  return {
+    mode,
+    ...(network === "open" ? {} : { network }),
+    ...(maskPaths.length > 0 ? { maskPaths } : {}),
+    ...(writableTemp !== undefined ? { writableTemp } : {}),
+  };
+}

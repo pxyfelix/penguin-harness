@@ -144,7 +144,19 @@ export function bwrapProfileArgs(policy: SandboxPolicy): string[] {
   // dimensions below (a network cut, a masked path) still apply — which is the whole reason a
   // full-access policy reached a backend at all.
   const rootBind = policy.mode === "danger-full-access" ? "--bind" : "--ro-bind";
-  const args = [rootBind, "/", "/", "--dev", "/dev", "--proc", "/proc", "--die-with-parent"];
+  // A private PID namespace prevents `/proc/<host-pid>/root` from exposing a second path to
+  // the host tree and bypassing the masks below.
+  const args = [
+    rootBind,
+    "/",
+    "/",
+    "--dev",
+    "/dev",
+    "--unshare-pid",
+    "--proc",
+    "/proc",
+    "--die-with-parent",
+  ];
   const roots = writableRoots(policy);
   if (policy.writableTemp === true) args.push("--tmpfs", "/tmp");
   for (const root of roots) {
@@ -180,6 +192,7 @@ const BASE_PROFILE_PROBE = [
   "/",
   "--dev",
   "/dev",
+  "--unshare-pid",
   "--proc",
   "/proc",
   "--die-with-parent",

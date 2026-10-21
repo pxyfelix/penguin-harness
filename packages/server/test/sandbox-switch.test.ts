@@ -10,9 +10,11 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseManifest } from "@prismshadow/penguin-core/kernel";
 import type { ModuleDef } from "@prismshadow/penguin-core/kernel";
+import type { SandboxPolicy, SandboxProvider } from "@prismshadow/penguin-core/plugin";
 import type { PluginConfigEntry, PluginConfigResponse, SessionSandbox } from "../src/api/types.js";
 import { PluginHost } from "../src/plugin/host.js";
 import type { SandboxService } from "../src/sandbox/service.js";
+import type { SessionEnv } from "../src/runtime/session-manager.js";
 import { apiClient, createTestApp, loginAdmin, provisionUser } from "./helpers.js";
 import type { TestApp } from "./helpers.js";
 
@@ -36,7 +38,7 @@ function backendPlugin(bind: Record<string, unknown>): PluginHost {
         "SandboxModule.providers": Object.keys(bind).map((id) => ({
           id,
           name: id.replace(/\.provider$/, ""),
-          dimensions: ["fs-write", "network"],
+          dimensions: ["fs-write", "network", "mask-paths"],
         })),
       },
       children: [],
@@ -49,7 +51,7 @@ function backendPlugin(bind: Record<string, unknown>): PluginHost {
 }
 
 const PROVIDER = {
-  dimensions: ["fs-write", "network"],
+  dimensions: ["fs-write", "network", "mask-paths"],
   confine: (argv: readonly string[]) => ({
     argv: ["confined", ...argv],
     enforcement: "full" as const,
@@ -308,6 +310,100 @@ describe("the sandbox switch", () => {
     for (const column of presets.columns!.filter((c) => c.type === "enum"))
       for (const option of column.options!)
         expect(option, `${column.name}.${option.value}`).toMatchObject(described);
+  });
+
+  it("forces tenant read masks and the current ceiling on a member's stored full access", async () => {
+    let seen: SandboxPolicy | null = null;
+    const recorder: SandboxProvider = {
+      dimensions: ["fs-write", "network", "mask-paths"],
+      confine(argv, policy) {
+        seen = policy;
+        return {
+          argv: ["confined", ...argv],
+          enforcement: "full",
+          denialSignatures: [],
+          runnerFailureRules: [],
+        };
+      },
+    };
+    const { t, save } = await boot({
+      plugins: backendPlugin({ "recorder.provider": recorder }),
+    });
+    expect((await save({ enabled: true, defaultPreset: "full-access" })).status).toBe(200);
+
+    const owner = apiClient(t.app, (await provisionUser(t.app, "owner_masks")).cookie);
+    const member = apiClient(t.app, (await provisionUser(t.app, "member_masks")).cookie);
+    const projectId = (
+      (await (
+        await owner.post("/api/projects", {
+          projectId: "owner_masks-team",
+          name: "Team",
+        })
+      ).json()) as { project: { projectId: string } }
+    ).project.projectId;
+    expect(
+      (
+        await owner.post(`/api/projects/${projectId}/members`, {
+          userId: "member_masks",
+        })
+      ).status,
+    ).toBe(201);
+    const model = { provider: "anthropic", modelId: "claude-sonnet-4-6" };
+    expect(
+      (
+        await owner.put(`/api/projects/${projectId}/models`, {
+          defaultModel: model,
+          models: [{ ...model, contextWindow: 128000 }],
+        })
+      ).status,
+    ).toBe(200);
+    const created = await member.post(
+      `/api/projects/${projectId}/agents/default_agent/sessions`,
+      {},
+    );
+    expect(created.status).toBe(201);
+    const session = (
+      (await created.json()) as {
+        session: { sessionId: string; workspace: string; sandbox: SessionSandbox };
+      }
+    ).session;
+    expect(session.sandbox.mode).toBe("danger-full-access");
+
+    const env = t.deps.tree.api<SessionEnv>("SessionsModule", "env");
+    const confiner = env.confineSpawn({
+      projectId,
+      agentId: "default_agent",
+      sessionId: session.sessionId,
+    });
+    expect(confiner).not.toBeNull();
+    expect(
+      confiner!(["true"], {
+        cwd: session.workspace,
+        workspaceDir: session.workspace,
+      }).argv[0],
+    ).toBe("confined");
+    expect(seen).not.toBeNull();
+    expect(seen!.mode).toBe("danger-full-access");
+
+    // The server ceiling tightens what the stored row may do, without rewriting the row.
+    expect((await save({ defaultPreset: "workspace-write" })).status).toBe(200);
+    expect(
+      confiner!(["true"], {
+        cwd: session.workspace,
+        workspaceDir: session.workspace,
+      }).argv[0],
+    ).toBe("confined");
+    expect(seen!.mode).toBe("workspace-write");
+    expect(seen!.maskPaths).toEqual(
+      expect.arrayContaining([
+        path.join(t.root, "default_project"),
+        path.join(t.root, "owner_masks-default_project"),
+        path.join(t.root, "member_masks-default_project"),
+        path.join(t.root, "api-token"),
+      ]),
+    );
+    expect(seen!.maskPaths).not.toContain(session.workspace);
+    expect(seen!.maskPaths).not.toContain(path.join(t.root, projectId));
   });
 
   it.each([

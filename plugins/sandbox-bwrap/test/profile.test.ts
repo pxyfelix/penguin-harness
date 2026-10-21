@@ -32,6 +32,7 @@ describe("penguin-bwrap profile", () => {
       "/",
       "--dev",
       "/dev",
+      "--unshare-pid",
       "--proc",
       "/proc",
       "--die-with-parent",

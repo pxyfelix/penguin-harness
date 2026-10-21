@@ -221,9 +221,20 @@ export class SandboxService {
    * The same closure under a policy the caller keeps — a Session's own snapshot. The
    * backends are still this service's, so a backend change reaches every Session.
    */
-  confinerFor(policyOf: () => SandboxSettings): SpawnConfiner {
+  confinerFor(
+    policyOf: () => SandboxSettings,
+    mandatoryMasksOf?: (opts: Parameters<SpawnConfiner>[1]) => readonly string[],
+  ): SpawnConfiner {
     return (argv, opts) => {
-      const settings = policyOf();
+      const stored = policyOf();
+      const mandatory = mandatoryMasksOf?.(opts) ?? [];
+      const settings: SandboxSettings =
+        mandatory.length === 0
+          ? stored
+          : {
+              ...stored,
+              maskPaths: [...new Set([...(stored.maskPaths ?? []), ...mandatory])],
+            };
       const required = requestedDimensions(settings);
       // Full access with nothing else asked (no network cut, no masked paths) is genuinely
       // unconfined — spawn as-is. But full access that STILL cuts the network or masks a path

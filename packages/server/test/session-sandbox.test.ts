@@ -13,6 +13,7 @@ import { SessionsRepo } from "../src/db/repos/sessions.js";
 import type { SessionRow } from "../src/db/repos/sessions.js";
 import type { SessionSandbox } from "../src/api/types.js";
 import { SandboxService } from "../src/sandbox/index.js";
+import { tightenSandboxToCeiling } from "../src/services/sandbox-ceiling.js";
 import { applySandboxPick, sessionSandboxOf } from "../src/services/session-service.js";
 
 const sqlite = process.getBuiltinModule("node:sqlite");
@@ -201,6 +202,56 @@ describe("confining under a Session's own policy", () => {
 
     snapshot = { mode: "danger-full-access" };
     expect(sessionConfiner(["true"], opts).argv).toEqual(["true"]);
+  });
+
+  it("mandatory tenant masks reach the backend even when the stored mode is full access", async () => {
+    const seen: SandboxSettings[] = [];
+    const provider: SandboxProvider = {
+      dimensions: ["fs-write", "mask-paths"],
+      confine(argv, policy) {
+        seen.push(policy as SandboxSettings);
+        return {
+          argv: ["runner", ...argv],
+          enforcement: "full",
+          denialSignatures: [],
+          runnerFailureRules: [],
+        };
+      },
+    };
+    const svc = new SandboxService([["fake", provider]]);
+    await svc.whenReady();
+    const confiner = svc.confinerFor(
+      () => ({ mode: "danger-full-access", maskPaths: ["/global-secret"] }),
+      () => ["/other-project", "/other-workspace"],
+    );
+
+    expect(
+      confiner(["true"], {
+        cwd: "/workspace",
+        workspaceDir: "/workspace",
+        scratchpadDir: "/scratchpad",
+      }).argv[0],
+    ).toBe("runner");
+    expect(seen[0]?.maskPaths).toEqual(["/global-secret", "/other-project", "/other-workspace"]);
+  });
+
+  it("tightens an existing member policy to the current server ceiling", () => {
+    expect(
+      tightenSandboxToCeiling(
+        { mode: "danger-full-access", maskPaths: ["/session-secret"] },
+        {
+          mode: "workspace-write",
+          network: "none",
+          maskPaths: ["/server-secret"],
+          writableTemp: false,
+        },
+      ),
+    ).toEqual({
+      mode: "workspace-write",
+      network: "none",
+      maskPaths: ["/session-secret", "/server-secret"],
+      writableTemp: false,
+    });
   });
 });
 
