@@ -95,7 +95,11 @@ export function tenantIsolationMaskPaths(args: TenantIsolationPaths): string[] {
     if (!KEEP_HOME.has(entry.name)) add(masks, path.join(homeDir, entry.name));
   }
   for (const entry of entries(path.join(homeDir, ".penguin"))) {
-    if (!KEEP_PENGUIN.has(entry.name)) add(masks, path.join(homeDir, ".penguin", entry.name));
+    const target = path.join(homeDir, ".penguin", entry.name);
+    // Deployments may name their data root something other than "data". Keep that exact
+    // root visible; its Project/Agent/Workspace siblings are masked above.
+    if (path.resolve(target) === dataRoot) continue;
+    if (!KEEP_PENGUIN.has(entry.name)) add(masks, target);
   }
 
   return [...masks].sort();

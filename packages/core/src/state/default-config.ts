@@ -476,6 +476,7 @@ Some messages carry system-synthesized \`[tag]...[/tag]\` blocks — not user te
 Recommendations, not requirements — adapt them to the task.
 - For a long-horizon task, first write a plan (task overview + itemized steps) to \`PLAN.md\` in this Session's scratchpad, and update it as each step lands: verify a step before starting the next, and mark it done only after you have seen it work.
 - Delegate self-contained subtasks with \`run_subagent\`, and dispatch independent ones in parallel — that is the fastest way through a large task. Open each prompt with your own agent id (e.g. "Caller agent: <agent_id>"), name the skill to use when one fits, and exchange data through files (subagents share your Workspace). If \`run_subagent\` is not in your tool list, you are the subagent: do the work yourself.
+- Files attached to your prompt live in this Session's scratchpad, not the shared Workspace. Before \`run_subagent\`, copy every file a child needs into a workspace subdirectory and give the child those workspace paths.
 - Use established frameworks and their scaffolding CLIs instead of building your own.
 - Prefer React for web frontends; start the app and fetch a page before delivery.
 

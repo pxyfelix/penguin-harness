@@ -132,4 +132,44 @@ describe("member Session isolation masks", () => {
     expect(masks).not.toContain(path.join(home, "toolchains"));
     expect(new Set(masks).size).toBe(masks.length);
   });
+
+  it("keeps a custom data root visible under the Penguin home directory", async () => {
+    const customHome = path.join(base, "custom-home");
+    const customRoot = path.join(customHome, ".penguin", "data-multiuser-test");
+    const customWorkspace = path.join(
+      customRoot,
+      "clinical_capability_pilot",
+      "agents",
+      "lead_statistician",
+      "workspaces",
+      "user-felix",
+    );
+    const customScratchpad = path.join(
+      customRoot,
+      "clinical_capability_pilot",
+      "agents",
+      "lead_statistician",
+      "scratchpad",
+      "session-current",
+    );
+    const siblingProject = path.join(customRoot, "other_project");
+
+    await fs.mkdir(customWorkspace, { recursive: true });
+    await fs.mkdir(customScratchpad, { recursive: true });
+    await fs.mkdir(siblingProject, { recursive: true });
+
+    const masks = tenantIsolationMaskPaths({
+      dataRoot: customRoot,
+      homeDir: customHome,
+      projectId: "clinical_capability_pilot",
+      agentId: "lead_statistician",
+      workspace: customWorkspace,
+      scratchpad: customScratchpad,
+    });
+
+    expect(masks).not.toContain(customRoot);
+    expect(masks).not.toContain(customWorkspace);
+    expect(masks).not.toContain(customScratchpad);
+    expect(masks).toContain(siblingProject);
+  });
 });

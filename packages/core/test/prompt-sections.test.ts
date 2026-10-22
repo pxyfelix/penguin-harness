@@ -233,6 +233,11 @@ describe("{{SCHEDULES}} rendering", () => {
     expect(prompt).toContain("leave `end_at` off and say in your reply");
     // A subagent renders this same section against its own short-lived Session.
     expect(prompt).toContain("If `run_subagent` is not in your tool list, you are the subagent");
+    // Prompt attachments sit in the parent Session's scratchpad, which a child cannot read.
+    expect(prompt).toContain(
+      "Files attached to your prompt live in this Session's scratchpad, not the shared Workspace",
+    );
+    expect(prompt).toContain("copy every file a child needs into a workspace subdirectory");
     // A Session is not the durable identity of a conversation, and the section says so.
     expect(prompt).toContain("this Session is not permanent");
   });
