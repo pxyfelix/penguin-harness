@@ -10,14 +10,17 @@ Word, Excel, and PDF-related deliverables. It lives outside any Session Workspac
 └── site/                   # python-docx and openpyxl
 ```
 
-`setup.sh` installs the pinned packages and writes `/etc/profile.d/penguin-clinical-doc.sh`,
-so Agent login shells can use `python3` or `clinical-python` without installing packages
-again. The profile exports:
+`setup.sh` installs the pinned packages and writes `/etc/profile.d/penguin-clinical-doc.sh`.
+The profile puts lightweight `python`/`python3`/`clinical-python` wrappers first on PATH;
+the wrappers add the package site only for the system Python, so they cannot corrupt a
+separate Python 3.11 virtualenv used by the review core. It also exports:
 
 ```text
 PENGUIN_CLINICAL_DOC_ROOT
-PYTHONPATH=<root>/site
 PATH=<root>/bin:$PATH
+PROTOCOL_REVIEW_CORE=<biostat pack>/packages/protocol-review-core/src
+SAP_REVIEW_CORE=<biostat pack>/packages/sap-review-core/src
+UV_CACHE_DIR=/tmp/penguin-uv-cache
 ```
 
 PDF extraction continues to use the system `pdftotext` command; Word-to-PDF conversion uses

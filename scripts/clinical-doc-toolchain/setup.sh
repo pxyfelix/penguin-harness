@@ -22,6 +22,8 @@ mkdir -p "$site" "$bin"
 
 install -m 0755 "$here/clinical-python" "$bin/clinical-python"
 ln -sfn clinical-python "$bin/clinical-python3"
+install -m 0755 "$here/clinical-python" "$bin/python3"
+install -m 0755 "$here/clinical-python" "$bin/python"
 
 if [ "$(id -u)" -eq 0 ]; then
   install -m 0644 "$here/profile.sh" "$profile"
@@ -29,7 +31,7 @@ else
   sudo -n install -m 0644 "$here/profile.sh" "$profile"
 fi
 
-PYTHONPATH="$site${PYTHONPATH:+:$PYTHONPATH}" "$python" - <<'PY'
+"$bin/python3" - <<'PY'
 import docx
 import openpyxl
 
