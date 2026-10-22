@@ -18,7 +18,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
-import { parseCsv } from "./csv.mjs";
+import { parseCsv, toCsv } from "./csv.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -371,6 +371,28 @@ export async function convertXlsxToCsv(file, tempDir) {
   return path.join(tempDir, csvName);
 }
 
+export async function convertCsvToXlsx(file, outputDir) {
+  const absolute = path.resolve(file);
+  const profile = await mkdtemp(path.join(tmpdir(), "clinical-lo-profile-"));
+  try {
+    await execFileAsync("libreoffice", [
+      `-env:UserInstallation=${pathToFileURL(profile).href}`,
+      "--headless",
+      "--nologo",
+      "--nodefault",
+      "--nofirststartwizard",
+      "--convert-to",
+      "xlsx",
+      "--outdir",
+      outputDir,
+      absolute,
+    ]);
+    return path.join(outputDir, `${path.basename(absolute, path.extname(absolute))}.xlsx`);
+  } finally {
+    await rm(profile, { recursive: true, force: true });
+  }
+}
+
 export async function importExcel(ctx, file, options, deps = {}, now = new Date()) {
   const convert = deps.convert ?? convertXlsxToCsv;
   const tempDir = await mkdtemp(path.join(tmpdir(), "clinical-excel-"));
@@ -424,6 +446,78 @@ export async function syncStagedFeedback(ctx, options = {}) {
     }
   }
   return { imported, duplicate, invalid };
+}
+
+function evidenceText(evidence) {
+  if (!Array.isArray(evidence) || evidence.length === 0) return "";
+  return evidence
+    .map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") {
+        return item.reference ?? item.artifact ?? item.trace ?? JSON.stringify(item);
+      }
+      return String(item);
+    })
+    .join("; ");
+}
+
+export async function exportIssues(ctx, options, deps = {}) {
+  const output = path.resolve(requiredText(options.output, "output"));
+  const { reports } = await listIssues(ctx, { userId: options.userId });
+  const filtered = reports.filter((report) => {
+    const day = String(report.created_at ?? "").slice(0, 10);
+    return (
+      (options.from === undefined || day >= options.from) &&
+      (options.to === undefined || day <= options.to)
+    );
+  });
+  const rows = [
+    [
+      "编号",
+      "填写人",
+      "Agent",
+      "能力",
+      "实际问题",
+      "期望结果",
+      "严重度",
+      "证据",
+      "状态",
+      "时间",
+      "Session",
+    ],
+    ...filtered.map((report) => [
+      report.id,
+      report.user_id,
+      report.agent_id ?? "",
+      report.capability,
+      report.observed,
+      report.expected,
+      report.severity,
+      evidenceText(report.evidence),
+      report.status,
+      report.created_at,
+      report.session_id ?? "",
+    ]),
+  ];
+  await mkdir(path.dirname(output), { recursive: true });
+  if (path.extname(output).toLowerCase() !== ".xlsx") {
+    await writeFile(output, `\ufeff${toCsv(rows)}`, "utf8");
+    return { file: output, rows: filtered.length, format: "csv" };
+  }
+  const convert = deps.convert ?? convertCsvToXlsx;
+  const tempDir = await mkdtemp(path.join(tmpdir(), "clinical-export-"));
+  const csvFile = path.join(tempDir, `${path.basename(output, ".xlsx")}.csv`);
+  try {
+    await writeFile(csvFile, `\ufeff${toCsv(rows)}`, "utf8");
+    const xlsx = await convert(csvFile, path.dirname(output));
+    if (path.resolve(xlsx) !== output) {
+      await rm(output, { force: true });
+      await rename(xlsx, output);
+    }
+    return { file: output, rows: filtered.length, format: "xlsx" };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 }
 
 async function scanJsonDir(dir, validate) {

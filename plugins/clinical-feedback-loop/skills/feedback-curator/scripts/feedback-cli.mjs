@@ -7,6 +7,7 @@ import { parseCsv } from "./lib/csv.mjs";
 import {
   buildReviewPacket,
   captureIssue,
+  exportIssues,
   importCsv,
   importExcel,
   initStore,
@@ -163,6 +164,15 @@ async function review(ctx, options) {
   return { ...packet, outDir };
 }
 
+async function exportCommand(ctx, options) {
+  return exportIssues(ctx, {
+    output: options.output,
+    from: options.from,
+    to: options.to,
+    userId: options["user-id"],
+  });
+}
+
 async function active(ctx) {
   try {
     return {
@@ -200,6 +210,9 @@ async function main() {
     case "review":
       result = await review(ctx, options);
       break;
+    case "export":
+      result = await exportCommand(ctx, options);
+      break;
     case "publish":
       result = await publishMemoryPack(ctx, {
         sourceDir: options.source,
@@ -212,7 +225,7 @@ async function main() {
       break;
     default:
       throw new Error(
-        "Usage: feedback-cli.mjs <init|capture|list|import-csv|import-excel|sync-staged|review|publish|active> [options]",
+        "Usage: feedback-cli.mjs <init|capture|list|import-csv|import-excel|sync-staged|review|export|publish|active> [options]",
       );
   }
   process.stdout.write(`${JSON.stringify(result, null, options.json ? 0 : 2)}\n`);

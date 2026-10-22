@@ -77,6 +77,19 @@ test("runs init, capture, list, CSV import and review from the CLI", async (t) =
   assert.equal(review.reportCount, 2);
   const packet = JSON.parse(await readFile(path.join(review.outDir, "packet.json"), "utf8"));
   assert.equal(packet.reportCount, 2);
+  const exported = JSON.parse(
+    await run([
+      "export",
+      ...common,
+      "--output",
+      path.join(review.outDir, "all-feedback.csv"),
+      "--from",
+      "2026-10-01",
+      "--to",
+      "2026-10-31",
+    ]),
+  );
+  assert.equal(exported.rows, 2);
 
   const candidate = path.join(review.outDir, "candidate-pack");
   await mkdir(path.join(candidate, "entries"), { recursive: true });

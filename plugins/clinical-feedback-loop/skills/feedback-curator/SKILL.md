@@ -1,7 +1,7 @@
 ---
 name: feedback-curator
 description: Use when importing colleague feedback, clustering issue reports, resolving duplicate or conflicting reports, preparing a weekly review, or publishing an approved Memory Pack.
-version: 2026.10.21.3
+version: 2026.10.21.4
 ---
 
 # Feedback Curator
@@ -50,12 +50,24 @@ This is necessary because normal Agent sessions may write only their Workspace a
 node "$CLI" review --from YYYY-MM-DD --to YYYY-MM-DD
 ```
 
-4. Read `packet.json`, `packet.md` and `reports.jsonl`.
-5. Create Issue Clusters in `clusters/<id>.json`. Merge only reports with the same
+4. Export the same window to one administrator workbook:
+
+```bash
+node "$CLI" export \
+  --output "reviews/YYYY-MM-DD_YYYY-MM-DD/all-feedback.xlsx" \
+  --from YYYY-MM-DD \
+  --to YYYY-MM-DD
+```
+
+This workbook merges feedback from every user and every Agent. It is a generated view; the JSON
+reports remain the source of truth.
+
+5. Read `packet.json`, `packet.md` and `reports.jsonl`.
+6. Create Issue Clusters in `clusters/<id>.json`. Merge only reports with the same
    capability, artifact or workflow step, failure mode, and likely root category.
-6. Create Conflict Groups in `conflicts/<id>.json` when claims cannot all apply. Preserve
+7. Create Conflict Groups in `conflicts/<id>.json` when claims cannot all apply. Preserve
    every side and its evidence; do not use majority vote.
-7. Never use `source: rsi_eval` as colleague experience.
+8. Never use `source: rsi_eval` as colleague experience.
 
 Cluster ids start with `FC-`; conflict ids start with `CF-`. Keep their schemas in
 `feedback/tools/schemas/`.

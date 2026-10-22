@@ -86,7 +86,7 @@ Agent 执行的 `penguin` 命令被 Node 当成 JavaScript 解析。
 `clinical-feedback-loop` 插件已加入 fork，并安装到测试 Project：
 
 - `feedback-capture` `2026.10.21.2` 装在被测 Agent。
-- `feedback-curator` `2026.10.21.3` 装在 `default_agent`。
+- `feedback-curator` `2026.10.21.4` 装在 `default_agent`。
 - `curated-memory-reader` `2026.10.21.1` 装在全部 Agent。
 - 六列 Excel 模板、Issue/Cluster/Conflict/Memory Pack Schema 和分类字典已生成。
 - 反馈目录包含 `inbox`、`normalized`、`clusters`、`conflicts`、`reviews`、`decisions`、
@@ -112,6 +112,7 @@ Agent 执行的 `penguin` 命令被 Node 当成 JavaScript 解析。
 - `sync-staged` 首次导入 1 条，后续运行识别 1 条重复。
 - General Agent 对 5 条测试反馈生成 3 个 Issue Cluster、1 个 Conflict Group、审核包和
   候选 Memory Pack。
+- Curator 可将所有用户、所有 Agent 的反馈导出成一份管理员 Excel。
 - SAP 冲突没有生成 Memory Candidate；候选 Pack 保持未发布。
 - 未创建 `active-memory-pack.json`，因此测试内容没有进入 Agent 上下文。
 

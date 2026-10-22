@@ -33,6 +33,7 @@ node feedback-cli.mjs import-csv --input feedback.csv --user-id <user>
 node feedback-cli.mjs import-excel --input feedback.xlsx --user-id <user>
 node feedback-cli.mjs sync-staged --project-dir <project>
 node feedback-cli.mjs review --from YYYY-MM-DD --to YYYY-MM-DD
+node feedback-cli.mjs export --output all-feedback.xlsx --from YYYY-MM-DD --to YYYY-MM-DD
 node feedback-cli.mjs publish --source <review-pack-dir> --version YYYY.MM.DD.N --approved-by <user>
 node feedback-cli.mjs active
 ```
@@ -40,6 +41,9 @@ node feedback-cli.mjs active
 `--root` and `--project` default to `PENGUIN_HOME` and `PENGUIN_PROJECT_ID`.
 Tested Agents stage reports in their own writable Workspace; the curator collects them into the
 central Project feedback store with `sync-staged`.
+
+`export` writes one administrator workbook containing every selected report, regardless of which
+Agent captured it. Use a `.csv` output path for CSV or `.xlsx` for LibreOffice conversion.
 
 ## Separation
 
