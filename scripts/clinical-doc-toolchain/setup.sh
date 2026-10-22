@@ -18,7 +18,9 @@ mkdir -p "$site" "$bin"
   --index-url https://pypi.tuna.tsinghua.edu.cn/simple \
   --target "$site" \
   "python-docx==1.2.0" \
-  "openpyxl==3.1.5"
+  "openpyxl==3.1.5" \
+  "pypdf==6.14.2" \
+  "mistune>=3.3.4,<4"
 
 install -m 0755 "$here/clinical-python" "$bin/clinical-python"
 ln -sfn clinical-python "$bin/clinical-python3"

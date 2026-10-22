@@ -20,9 +20,14 @@ PENGUIN_CLINICAL_DOC_ROOT
 PATH=<root>/bin:$PATH
 PROTOCOL_REVIEW_CORE=<biostat pack>/packages/protocol-review-core/src
 SAP_REVIEW_CORE=<biostat pack>/packages/sap-review-core/src
+PENGUIN_SAP_GENERATION_ROOT=/home/ubuntu/toolchains/sap-generation
 UV_CACHE_DIR=/tmp/penguin-uv-cache
 ```
 
 PDF extraction continues to use the system `pdftotext` command; Word-to-PDF conversion uses
 the system LibreOffice installation. The sandbox already keeps `~/toolchains` readable while
 masking other users' data.
+
+The optional `setup-sap-generation.sh` copies only the shared `auto_sap` source into
+`/home/ubuntu/toolchains/sap-generation`, installs its Python dependencies into the shared
+site, and deliberately excludes `.env`, project data, and user deliverables.
