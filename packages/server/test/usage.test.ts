@@ -174,6 +174,23 @@ describe("usage-service (cost computed on the fly)", () => {
     });
   }
 
+  function insertOwner(sessionId: string, ownerUserId: string): void {
+    db.prepare(
+      `INSERT INTO sessions
+         (session_id, project_id, agent_id, provider, model_id, workspace, created_at, owner_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      sessionId,
+      "p1",
+      "a1",
+      "custom",
+      "m1",
+      "/tmp/workspace",
+      "2026-07-06T00:00:00.000Z",
+      ownerUserId,
+    );
+  }
+
   it("a scheduled model is priced per record, and the total does not move with the clock", async () => {
     // The defect this pins: pricing the whole table at whichever tier is in force when the page
     // is opened made a finished week's cost double at 09:00 Beijing and halve at 12:00. The tier
@@ -287,6 +304,55 @@ describe("usage-service (cost computed on the fly)", () => {
     // Not visible from another Project.
     const other = await svc.query("p-other", { groupBy: "date" });
     expect(other.groups).toEqual([]);
+  });
+
+  it("admin user breakdown attributes usage through the Session owner and keeps unattributed usage visible", async () => {
+    const now = new Date("2026-07-06T10:00:00");
+    pricing.m2 = { cacheRead: 1, cacheWrite: 1, output: 1 };
+    insertOwner("s-alice", "alice");
+    insertOwner("s-bob", "bob");
+    insert("2026-07-06", { sessionId: "s-alice", modelId: "m1" });
+    insert("2026-07-06", { sessionId: "s-bob", modelId: "m2" });
+    insert("2026-07-06", { sessionId: "s-orphan", modelId: "m1" });
+
+    const res = await service(now).query("p1", {
+      groupBy: "date",
+      from: "2026-07-06",
+      to: "2026-07-06",
+      includeUserBreakdown: true,
+    });
+    const byUser = (
+      res as typeof res & {
+        byUser: Array<{
+          key: string;
+          total: number;
+          requests: number;
+          cost: number | null;
+          hasUncosted: boolean;
+        }>;
+      }
+    ).byUser;
+    const rows = new Map(byUser.map((row) => [row.key, row]));
+
+    expect(new Set(rows.keys())).toEqual(new Set(["alice", "bob", ""]));
+    expect(rows.get("alice")).toMatchObject({ total: 100, requests: 1 });
+    expect(rows.get("alice")!.cost).toBeCloseTo(ROW_COST, 12);
+    expect(rows.get("bob")!.cost).toBeCloseTo((10 + 1 + 5) / 1e6, 12);
+    expect(rows.get("")!.cost).toBeCloseTo(ROW_COST, 12);
+    expect([...rows.values()].every((row) => !row.hasUncosted)).toBe(true);
+
+    const withoutAdminBreakdown = await service(now).query("p1", {
+      groupBy: "date",
+      from: "2026-07-06",
+      to: "2026-07-06",
+    });
+    expect(
+      (
+        withoutAdminBreakdown as typeof withoutAdminBreakdown & {
+          byUser: unknown[];
+        }
+      ).byUser,
+    ).toEqual([]);
   });
 
   it("pricing is looked up for every reference the response prices, and only those", async () => {

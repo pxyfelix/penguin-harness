@@ -3892,7 +3892,7 @@ export interface TraceImportResponse {
 // Usage and cost statistics
 // ---------------------------------------------------------------------------
 
-export type UsageGroupBy = "date" | "agent" | "model" | "session";
+export type UsageGroupBy = "date" | "agent" | "model" | "session" | "user";
 
 /**
  * A cost split by the three pricing buckets, in USD: cached input (`cacheRead`), uncached input
@@ -3916,7 +3916,7 @@ export interface UsageBucket {
 }
 
 export interface UsageGroupRow {
-  /** Group key: date / agentId / modelId / sessionId. */
+  /** Group key: date / agentId / modelId / sessionId / userId. Empty means unattributed for groupBy=user. */
   key: string;
   /** Provider group when groupBy=model (rows are broken down by (provider, modelId); unset for other dimensions). */
   provider?: string;
@@ -4120,6 +4120,11 @@ export interface UsageResponse {
    * chart draws the whole breakdown — but affected by date/agent filters.
    */
   byModelSeries: UsageModelSeries[];
+  /**
+   * Admin-only per-user totals over the selected date/Agent/model range. Usage is attributed
+   * through the Session owner; an empty `key` is usage whose Session has no owner.
+   */
+  byUser: UsageGroupRow[];
   /** Server-side error capture stats (affected by date/agent filters; unaffected by model filter). */
   errors: UsageErrors;
   /** List of Agent ids that have appeared in this Project (for the filter dropdown; unaffected by current filters). */

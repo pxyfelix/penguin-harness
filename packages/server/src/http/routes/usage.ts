@@ -122,6 +122,9 @@ export function usageRoutes(deps: UsageRouteDeps): Hono<AppEnv> {
         // "is a member of this Project" — a regular member seeing another tenant's errors
         // would be a cross-tenant information leak.
         includeGlobalErrors: c.var.user.isAdmin,
+        // Cross-user cost attribution is administrative data. The route never accepts a
+        // client-controlled switch, so project members cannot widen the response.
+        includeUserBreakdown: c.var.user.isAdmin,
         ...(from !== undefined ? { from } : {}),
         ...(to !== undefined ? { to } : {}),
         ...(agentId !== undefined && agentId !== "" ? { agentId } : {}),

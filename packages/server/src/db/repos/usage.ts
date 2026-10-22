@@ -123,12 +123,18 @@ const BUCKET_EXPRS: Record<UsageSeriesGranularity, string> = {
   month: "substr(date, 1, 7)",
 };
 
-/** groupBy dimension -> column name allowlist (prevents injection; only these four columns can be group keys). */
-const GROUP_COLUMNS: Record<UsageGroupBy, string> = {
+/** groupBy dimension -> SQL expression allowlist (prevents injection). */
+const GROUP_EXPRESSIONS: Record<UsageGroupBy, string> = {
   date: "date",
   agent: "agent_id",
   model: "model_id",
   session: "session_id",
+  user: `COALESCE((
+    SELECT owner.owner_user_id
+    FROM sessions owner
+    WHERE owner.project_id = usage_records.project_id
+      AND owner.session_id = usage_records.session_id
+  ), '')`,
 };
 
 /**
@@ -291,7 +297,7 @@ export class UsageRepo implements UsageStore {
     f: UsageFilter = {},
     tiers: readonly PeakTier[] = [],
   ): UsageGroupModelSums[] {
-    const col = GROUP_COLUMNS[groupBy];
+    const col = GROUP_EXPRESSIONS[groupBy];
     const { where, params } = this.conds(projectId, f);
     const peak = peakExpr(tiers);
     const rows = this.db

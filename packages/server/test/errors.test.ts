@@ -1518,6 +1518,70 @@ describe("HTTP error attribution (only when the requester actually has Project a
       ).json()) as UsageResponse
     ).errors;
 
+  it("per-user cost is present for admins and withheld from project members", async () => {
+    const added = await adminApi.post(`/api/projects/${adminProjectId}/members`, {
+      userId: "owner_user",
+    });
+    expect(added.status).toBe(201);
+    t.deps.db
+      .prepare(
+        `INSERT INTO sessions
+           (session_id, project_id, agent_id, provider, model_id, workspace, created_at, owner_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "session-owner-cost",
+        adminProjectId,
+        "default_agent",
+        "custom",
+        "usage-test-model",
+        "/tmp/owner-cost",
+        "2026-07-06T00:00:00.000Z",
+        "owner_user",
+      );
+    t.deps.db
+      .prepare(
+        `INSERT INTO usage_records
+           (ts, date, project_id, agent_id, session_id, origin_session_id, provider, model_id,
+            cache_read, cache_write, output, total, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "2026-07-06T00:00:00.000Z",
+        "2026-07-06",
+        adminProjectId,
+        "default_agent",
+        "session-owner-cost",
+        null,
+        "custom",
+        "usage-test-model",
+        10,
+        1,
+        5,
+        100,
+        "completed",
+      );
+
+    const adminResponse = (await (
+      await adminApi.get(
+        `/api/projects/${adminProjectId}/usage?groupBy=date&from=2026-07-06&to=2026-07-06`,
+      )
+    ).json()) as UsageResponse;
+    expect(adminResponse.byUser).toHaveLength(1);
+    expect(adminResponse.byUser[0]).toMatchObject({
+      key: "owner_user",
+      total: 100,
+      requests: 1,
+    });
+
+    const memberResponse = (await (
+      await ownerApi.get(
+        `/api/projects/${adminProjectId}/usage?groupBy=date&from=2026-07-06&to=2026-07-06`,
+      )
+    ).json()) as UsageResponse;
+    expect(memberResponse.byUser).toEqual([]);
+  });
+
   it("not logged in → 401: unattributed (anyone could flood another's error stats)", async () => {
     const res = await t.app.request(`/api/projects/${projectId}/usage?groupBy=date`);
     expect(res.status).toBe(401);

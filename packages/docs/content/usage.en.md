@@ -31,6 +31,8 @@ Three cards show totals: **Today**, **Last 7 days**, and **Total** for the selec
 
 Prices are shown in the display currency you choose under [Settings › General](/settings#general). Only models with configured pricing count toward cost. When some records have no price, an asterisk appears beside **Cost** and a note at the bottom of the page says so.
 
+Administrators also see a **Usage by user** table below the summary cards. It follows the current date, agent, and model filters and lists requests, Tokens, and cost for each user. Usage is attributed through the Session owner; usage whose Session has no owner, or whose historical Session was deleted, appears as **Unattributed**. Regular project members do not receive this breakdown.
+
 ## Read the charts
 
 Four charts show the selected range as time series:

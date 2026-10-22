@@ -47,6 +47,7 @@ import { dismissTodo } from "../../lib/todo-dismissals";
 import { refreshProjectTodos } from "../../lib/use-project-todos";
 import { formatMoney, humanizeTokens } from "../../lib/format";
 import { catalogEntryFor } from "@prismshadow/penguin-core/model-catalog";
+import { useAuthOptional } from "../../state/auth";
 import { useProject } from "../../state/project";
 import { useTheme } from "../../state/theme";
 import { TrendChart } from "./trend-chart";
@@ -149,6 +150,7 @@ interface LoadedRange {
 
 export function UsagePage() {
   useDocumentTitle(S.usage.title);
+  const user = useAuthOptional()?.user;
   const { currency } = useTheme();
   const { currentProject } = useProject();
   /** The Cost Center trail's raised badge, or undefined — the errors panel's notice clears it. */
@@ -405,6 +407,49 @@ export function UsagePage() {
           <Skeleton className="h-24" />
           <Skeleton className="h-24" />
         </div>
+      )}
+
+      {user?.isAdmin && data && (
+        <ChartCard title={S.usage.chartCostByUser}>
+          {data.byUser.length === 0 ? (
+            <p className="py-6 text-center text-xs text-gray-400">{S.usage.empty}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  <tr>
+                    <th className="py-2 pr-3 font-medium">{S.usage.colUser}</th>
+                    <th className="py-2 pr-3 text-right font-medium">{S.usage.requests}</th>
+                    <th className="py-2 pr-3 text-right font-medium">{S.usage.tokens}</th>
+                    <th className="py-2 text-right font-medium">{S.common.cost}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.byUser.map((row) => (
+                    <tr
+                      key={row.key || "unattributed"}
+                      className="border-b border-gray-100 last:border-0 dark:border-gray-800"
+                    >
+                      <td className="py-2 pr-3 font-medium text-gray-900 dark:text-gray-100">
+                        {row.key || S.usage.unattributedUser}
+                      </td>
+                      <td className="py-2 pr-3 text-right font-mono tabular-nums">
+                        {String(row.requests)}
+                      </td>
+                      <td className="py-2 pr-3 text-right font-mono tabular-nums">
+                        {humanizeTokens(row.total)}
+                      </td>
+                      <td className="py-2 text-right font-mono tabular-nums">
+                        {formatMoney(row.cost, currency)}
+                        {row.hasUncosted && <sup className="ml-px">*</sup>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </ChartCard>
       )}
 
       {/* Time-series charts, all over the shared range + precision: requests +

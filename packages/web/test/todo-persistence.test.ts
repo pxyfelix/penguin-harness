@@ -67,6 +67,7 @@ function server() {
         series: [],
         byAgentSeries: [],
         byModelSeries: [],
+        byUser: [],
         agentIds: [],
         models: [],
         errors: {

@@ -94,6 +94,8 @@ export interface UsageQuery {
   from?: string;
   to?: string;
   groupBy: UsageGroupBy;
+  /** Admin-only: add a per-user breakdown attributed through the Session owner. */
+  includeUserBreakdown?: boolean;
   /** Top-level filter: view by Agent (also used for groupBy=session drill-down). */
   agentId?: string;
   /** Top-level filter: view by Model (paired with modelId; the dropdown always sends them as a pair). */
@@ -357,6 +359,10 @@ export class UsageService implements UsageQueries {
       { ...win(q.from, q.to), ...ts },
       tiers,
     );
+    const userRows =
+      q.includeUserBreakdown === true
+        ? this.usage.groupsByModel(projectId, "user", { ...win(q.from, q.to), ...ts }, tiers)
+        : [];
     // Time series at the requested precision, zero-filled over the requested
     // range, defaulting to the last 30 days when no range is given.
     const granularity = q.granularity ?? "day";
@@ -431,7 +437,14 @@ export class UsageService implements UsageQueries {
     // Each paired reference that occurs is looked up for its current price only once.
     const rates = new Map<string, TieredRates | undefined>();
     const allRefs = new Map<string, { provider: string; modelId: string }>();
-    for (const r of [...todayRows, ...last7dRows, ...totalRows, ...groupRows, ...seriesRows]) {
+    for (const r of [
+      ...todayRows,
+      ...last7dRows,
+      ...totalRows,
+      ...groupRows,
+      ...userRows,
+      ...seriesRows,
+    ]) {
       allRefs.set(refKey(r.provider, r.modelId), { provider: r.provider, modelId: r.modelId });
     }
     for (const [key, ref] of allRefs) {
@@ -450,6 +463,7 @@ export class UsageService implements UsageQueries {
       series: this.foldSeries(bucketKeys, seriesRows, rates),
       byAgentSeries: foldAgentSeries(bucketKeys, agentBucketRows),
       byModelSeries: foldModelSeries(bucketKeys, modelBucketRows),
+      byUser: this.foldGroups(userRows, rates, "user"),
       errors: this.foldErrors(projectId, errorFilter, q.utcOffsetMinutes),
       agentIds: this.usage.distinctAgentIds(projectId),
       models: this.usage.distinctModels(projectId),
