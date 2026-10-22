@@ -43,6 +43,24 @@ test("imports a six-column Excel export", async (t) => {
   assert.equal(report.test_round, "P02");
 });
 
+test("imports the last row after a guide and example above the headers", async (t) => {
+  const ctx = await fixture(t);
+  const templateCsv = `填写说明：第 2 行为示例，请从第 4 行开始填写。
+P02-004,Table Shell,示例问题,示例期望,High,示例证据
+编号,能力,实际问题,期望结果,严重度,证据
+P02-005,CRF Review,主要终点缺少缺失值处理说明,明确缺失值处理规则,Blocker,P02-CRF-R2
+`;
+  const result = await importCsv(ctx, parseCsv(templateCsv), {
+    userId: "poppy",
+    testRound: "P02",
+  });
+  assert.deepEqual(result, { imported: 1, duplicate: 0, invalid: 0 });
+  const listing = await listIssues(ctx);
+  assert.equal(listing.reports.length, 1);
+  assert.equal(listing.reports[0].id, "P02-005");
+  assert.equal(listing.reports[0].observed, "主要终点缺少缺失值处理说明");
+});
+
 test("re-importing the same workbook rows is idempotent", async (t) => {
   const ctx = await fixture(t);
   const rows = parseCsv(csv);

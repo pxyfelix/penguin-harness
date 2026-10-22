@@ -1,7 +1,7 @@
 ---
 name: feedback-curator
 description: Use when importing colleague feedback, clustering issue reports, resolving duplicate or conflicting reports, preparing a weekly review, or publishing an approved Memory Pack.
-version: 2026.10.21.4
+version: 2026.10.22.3
 ---
 
 # Feedback Curator
@@ -21,6 +21,11 @@ This creates the Project feedback layout and copies the CLI, schemas and Excel t
 ```text
 <app_data_dir>/<project>/feedback/tools/
 ```
+
+The colleague-facing workbook has one sheet named `反馈`. Row 1 contains the instructions,
+row 2 is a non-imported example, row 3 contains the six column headers, and colleagues enter
+their first report from row 4. The importer accepts both this layout and legacy workbooks whose
+headers are on row 1.
 
 Use the Project-local copy after initialization:
 

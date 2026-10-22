@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -135,6 +135,36 @@ test("uses PENGUIN_HOME and PENGUIN_PROJECT_ID defaults", async (t) => {
     }),
   );
   assert.deepEqual(result, { ok: true, initialized: true });
+});
+
+test("initializes from the scripts copied into an installed Skill", async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), "clinical-cli-installed-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const sourceSkill = path.dirname(path.dirname(cli));
+  const installedSkill = path.join(root, "installed-skill");
+  await cp(path.join(sourceSkill, "scripts"), path.join(installedSkill, "scripts"), {
+    recursive: true,
+  });
+  await cp(path.join(sourceSkill, "schemas"), path.join(installedSkill, "schemas"), {
+    recursive: true,
+  });
+
+  const installedCli = path.join(installedSkill, "scripts", "feedback-cli.mjs");
+  const result = JSON.parse(
+    (
+      await execFileAsync(
+        process.execPath,
+        [installedCli, "init", "--root", root, "--project", "pilot"],
+        { encoding: "utf8" },
+      )
+    ).stdout,
+  );
+  assert.deepEqual(result, { ok: true, initialized: true });
+  const installedTemplate = await readFile(
+    path.join(root, "pilot", "feedback", "tools", "templates", "feedback.xlsx"),
+  );
+  const sourceTemplate = await readFile(path.join(sourceSkill, "templates", "feedback.xlsx"));
+  assert.deepEqual(installedTemplate, sourceTemplate);
 });
 
 test("captures into a workspace-local staging store", async (t) => {

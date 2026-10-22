@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { access, cp, copyFile, mkdir, readFile } from "node:fs/promises";
+import { access, cp, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,6 +16,7 @@ import {
   resolveContext,
   syncStagedFeedback,
 } from "./lib/store.mjs";
+import { feedbackTemplateBase64 } from "./template-data.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.resolve(scriptDir, "..");
@@ -90,9 +91,21 @@ async function firstExistingDirectory(candidates) {
   throw new Error(`Required plugin directory not found: ${candidates.join(" or ")}`);
 }
 
+async function firstExistingTemplateDirectory(candidates) {
+  for (const candidate of candidates) {
+    try {
+      const template = await readFile(path.join(candidate, "feedback.xlsx"));
+      if (template.byteLength > 10_000) return candidate;
+    } catch {
+      // Fall back to the embedded template next.
+    }
+  }
+  return undefined;
+}
+
 async function init(ctx) {
   await initStore(ctx);
-  const templates = await firstExistingDirectory([
+  const templates = await firstExistingTemplateDirectory([
     path.join(scriptDir, "templates"),
     path.join(skillRoot, "templates"),
   ]);
@@ -104,8 +117,21 @@ async function init(ctx) {
     path.join(scriptDir, "feedback-cli.mjs"),
     path.join(ctx.toolsDir, "feedback-cli.mjs"),
   );
+  await copyIfDifferent(
+    path.join(scriptDir, "template-data.mjs"),
+    path.join(ctx.toolsDir, "template-data.mjs"),
+  );
   await copyTreeIfDifferent(path.join(scriptDir, "lib"), path.join(ctx.toolsDir, "lib"));
-  await copyTreeIfDifferent(templates, path.join(ctx.toolsDir, "templates"));
+  if (templates) {
+    await copyTreeIfDifferent(templates, path.join(ctx.toolsDir, "templates"));
+  } else {
+    const target = path.join(ctx.toolsDir, "templates");
+    await mkdir(target, { recursive: true });
+    await writeFile(
+      path.join(target, "feedback.xlsx"),
+      Buffer.from(feedbackTemplateBase64, "base64"),
+    );
+  }
   await copyTreeIfDifferent(schemas, path.join(ctx.toolsDir, "schemas"));
   return { ok: true, initialized: true };
 }

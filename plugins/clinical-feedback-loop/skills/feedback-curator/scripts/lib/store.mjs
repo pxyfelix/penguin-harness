@@ -64,6 +64,7 @@ const FEEDBACK_DIRS = [
   "quarantine",
   "tools",
 ];
+const MAX_HEADER_SCAN_ROWS = 10;
 
 function segment(value, label) {
   if (typeof value !== "string" || !SEGMENT.test(value)) {
@@ -255,19 +256,21 @@ function normalizeHeader(value) {
     .toLowerCase();
 }
 
-function findHeaderMap(headerRow) {
-  const normalized = headerRow.map(normalizeHeader);
-  const indexes = {};
-  for (const [field, aliases] of Object.entries(CSV_HEADERS)) {
-    const index = normalized.findIndex((value) => aliases.has(value));
-    if (index >= 0) indexes[field] = index;
+function findHeader(rows) {
+  for (let rowIndex = 0; rowIndex < Math.min(rows.length, MAX_HEADER_SCAN_ROWS); rowIndex += 1) {
+    const normalized = rows[rowIndex].map(normalizeHeader);
+    const indexes = {};
+    for (const [field, aliases] of Object.entries(CSV_HEADERS)) {
+      const index = normalized.findIndex((value) => aliases.has(value));
+      if (index >= 0) indexes[field] = index;
+    }
+    if (Object.keys(indexes).length === Object.keys(CSV_HEADERS).length) {
+      return { rowIndex, indexes };
+    }
   }
-  if (Object.keys(indexes).length !== Object.keys(CSV_HEADERS).length) {
-    throw new Error(
-      "Excel headers must include ID, Capability, Actual problem, Expected result, Severity and Evidence.",
-    );
-  }
-  return indexes;
+  throw new Error(
+    "Excel headers must include ID, Capability, Actual problem, Expected result, Severity and Evidence.",
+  );
 }
 
 function csvCell(row, index) {
@@ -278,12 +281,12 @@ export async function importCsv(ctx, rows, options, now = new Date()) {
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new Error("CSV rows must be a non-empty array.");
   }
-  const headers = findHeaderMap(rows[0]);
+  const { rowIndex: headerRowIndex, indexes: headers } = findHeader(rows);
   const userId = segment(requiredText(options.userId, "userId"), "userId");
   let imported = 0;
   let duplicate = 0;
   let invalid = 0;
-  for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
+  for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
     const row = rows[rowIndex];
     if (!row.some((value) => String(value ?? "").trim() !== "")) continue;
     const observed = csvCell(row, headers.observed);

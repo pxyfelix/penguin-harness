@@ -1,6 +1,6 @@
 {
   "name": "@penguinharness/clinical-feedback-loop",
-  "version": "0.2.16",
+  "version": "0.2.19",
   "description": "Capture colleague feedback, import minimal Excel sheets, curate issue clusters and conflicts, and publish approved read-only memory packs.",
   "keywords": [
     "penguin-plugin",

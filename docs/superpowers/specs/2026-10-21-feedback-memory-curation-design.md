@@ -86,7 +86,7 @@ Agent 执行的 `penguin` 命令被 Node 当成 JavaScript 解析。
 `clinical-feedback-loop` 插件已加入 fork，并安装到测试 Project：
 
 - `feedback-capture` `2026.10.21.2` 装在被测 Agent。
-- `feedback-curator` `2026.10.21.4` 装在 `default_agent`。
+- `feedback-curator` `2026.10.22.3` 装在 `default_agent`。
 - `curated-memory-reader` `2026.10.21.1` 装在全部 Agent。
 - 六列 Excel 模板、Issue/Cluster/Conflict/Memory Pack Schema 和分类字典已生成。
 - 反馈目录包含 `inbox`、`normalized`、`clusters`、`conflicts`、`reviews`、`decisions`、
@@ -333,7 +333,13 @@ sensitivity: internal
 
 ## 极简 Excel
 
-Excel 显示六列：
+Excel 只保留一个 `反馈` 工作表，并按以下三层顺序显示：
+
+1. 第 1 行为填写说明；
+2. 第 2 行为一条示例；
+3. 第 3 行为六列表头，第 4 行起由同事填写。
+
+六列依次为：
 
 | ID | 能力 | 实际问题 | 期望结果 | 严重度 | 证据 |
 | --- | --- | --- | --- | --- | --- |
@@ -344,7 +350,7 @@ Excel 显示六列：
 - 期望结果；
 - 证据，可不填。
 
-`ID` 预填；`能力` 和 `严重度` 使用下拉框：
+`编号` 可留空，导入工具会生成稳定 ID；`能力` 和 `严重度` 使用下拉框：
 
 - 能力：`CRF Review`、`SAP`、`Table Shell`、`Workflow`、`Other`
 - 严重度：`Blocker`、`High`、`Normal`、`Low`

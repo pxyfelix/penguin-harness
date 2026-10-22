@@ -21,6 +21,11 @@ Initialization installs a self-contained CLI, schemas and Excel template under:
 <app_data_dir>/<project>/feedback/tools/
 ```
 
+The single-sheet feedback workbook keeps its guidance and example out of the data table:
+row 1 contains instructions, row 2 is an example, row 3 contains the six headers, and
+colleagues start entering reports on row 4. Import accepts this layout and legacy workbooks
+with headers on row 1.
+
 The installed skills always call that Project-local copy.
 
 ## Commands
