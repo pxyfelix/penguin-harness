@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+clinical_root="${PENGUIN_CLINICAL_DOC_ROOT:-/home/ubuntu/toolchains/clinical-doc}"
+export PYTHONPATH="$clinical_root/site${PYTHONPATH:+:$PYTHONPATH}"
+exec /usr/bin/python3 "$@"
