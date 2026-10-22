@@ -5,6 +5,8 @@ description: Track Token usage, cost, and server errors by agent, model, and tim
 
 The Cost Center shows how many Tokens your agents use, what those requests cost, and which requests failed. To open it, select **Cost Center** in the sidebar. The page, headed **Costs & usage**, lives at `/usage`.
 
+Regular users see only Agent usage and cost from Sessions owned by their own account. Only a server administrator can see usage across the whole Project and the per-user administrator breakdown.
+
 - To narrow what the page shows, see [Filter by agent, model, and time range](#filter-by-agent-model-and-time-range).
 - For totals, see [Read the summary cards](#read-the-summary-cards).
 - For trends over time, see [Read the charts](#read-the-charts) and [Gaps in the charts](#gaps-in-the-charts).

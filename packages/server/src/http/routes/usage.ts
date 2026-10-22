@@ -125,6 +125,8 @@ export function usageRoutes(deps: UsageRouteDeps): Hono<AppEnv> {
         // Cross-user cost attribution is administrative data. The route never accepts a
         // client-controlled switch, so project members cannot widen the response.
         includeUserBreakdown: c.var.user.isAdmin,
+        // Members see only their own Sessions' Agent usage; admins see the whole Project.
+        ...(c.var.user.isAdmin ? {} : { ownerUserId: c.var.user.userId }),
         ...(from !== undefined ? { from } : {}),
         ...(to !== undefined ? { to } : {}),
         ...(agentId !== undefined && agentId !== "" ? { agentId } : {}),

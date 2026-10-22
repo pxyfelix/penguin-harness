@@ -4555,6 +4555,7 @@ Scenarios:
 
   usage: {
     title: "Costs & usage",
+    memberScopeNote: "Only Agent usage from Sessions owned by your account is included here.",
     today: "Today",
     last7d: "Last 7 days",
     total: "Total",

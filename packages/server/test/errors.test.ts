@@ -1523,56 +1523,62 @@ describe("HTTP error attribution (only when the requester actually has Project a
       userId: "owner_user",
     });
     expect(added.status).toBe(201);
-    t.deps.db
-      .prepare(
-        `INSERT INTO sessions
-           (session_id, project_id, agent_id, provider, model_id, workspace, created_at, owner_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        "session-owner-cost",
-        adminProjectId,
-        "default_agent",
-        "custom",
-        "usage-test-model",
-        "/tmp/owner-cost",
-        "2026-07-06T00:00:00.000Z",
-        "owner_user",
-      );
-    t.deps.db
-      .prepare(
-        `INSERT INTO usage_records
-           (ts, date, project_id, agent_id, session_id, origin_session_id, provider, model_id,
-            cache_read, cache_write, output, total, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        "2026-07-06T00:00:00.000Z",
-        "2026-07-06",
-        adminProjectId,
-        "default_agent",
-        "session-owner-cost",
-        null,
-        "custom",
-        "usage-test-model",
-        10,
-        1,
-        5,
-        100,
-        "completed",
-      );
+    const addUsage = (sessionId: string, ownerUserId: string, agentId: string, total: number) => {
+      t.deps.db
+        .prepare(
+          `INSERT INTO sessions
+             (session_id, project_id, agent_id, provider, model_id, workspace, created_at, owner_user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          sessionId,
+          adminProjectId,
+          agentId,
+          "custom",
+          "usage-test-model",
+          `/tmp/${sessionId}`,
+          "2026-07-06T00:00:00.000Z",
+          ownerUserId,
+        );
+      t.deps.db
+        .prepare(
+          `INSERT INTO usage_records
+             (ts, date, project_id, agent_id, session_id, origin_session_id, provider, model_id,
+              cache_read, cache_write, output, total, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          "2026-07-06T00:00:00.000Z",
+          "2026-07-06",
+          adminProjectId,
+          agentId,
+          sessionId,
+          null,
+          "custom",
+          "usage-test-model",
+          10,
+          1,
+          5,
+          total,
+          "completed",
+        );
+    };
+    addUsage("session-owner-cost", "owner_user", "default_agent", 100);
+    addUsage("session-admin-cost", "admin", "lead_statistician", 250);
 
     const adminResponse = (await (
       await adminApi.get(
         `/api/projects/${adminProjectId}/usage?groupBy=date&from=2026-07-06&to=2026-07-06`,
       )
     ).json()) as UsageResponse;
-    expect(adminResponse.byUser).toHaveLength(1);
-    expect(adminResponse.byUser[0]).toMatchObject({
-      key: "owner_user",
-      total: 100,
-      requests: 1,
-    });
+    expect(adminResponse.summary.total.total).toBe(350);
+    expect(adminResponse.byUser).toHaveLength(2);
+    expect(adminResponse.byUser).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "owner_user", total: 100, requests: 1 }),
+        expect.objectContaining({ key: "admin", total: 250, requests: 1 }),
+      ]),
+    );
 
     const memberResponse = (await (
       await ownerApi.get(
@@ -1580,6 +1586,9 @@ describe("HTTP error attribution (only when the requester actually has Project a
       )
     ).json()) as UsageResponse;
     expect(memberResponse.byUser).toEqual([]);
+    expect(memberResponse.summary.total).toMatchObject({ total: 100, requests: 1 });
+    expect(memberResponse.byAgentSeries.map((row) => row.agentId)).toEqual(["default_agent"]);
+    expect(memberResponse.agentIds).toEqual(["default_agent"]);
   });
 
   it("not logged in → 401: unattributed (anyone could flood another's error stats)", async () => {

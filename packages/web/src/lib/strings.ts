@@ -4733,6 +4733,7 @@ Benchmark：
 
   usage: {
     title: "成本与统计",
+    memberScopeNote: "这里只统计与你账号关联的 Session 所产生的 Agent 用量。",
     today: "今日",
     last7d: "近 7 天",
     total: "累计",

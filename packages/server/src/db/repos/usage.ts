@@ -40,6 +40,8 @@ export interface UsageFilter {
   /** Provider filter paired with modelId (the frontend dropdown always sends them together). */
   provider?: string;
   modelId?: string;
+  /** Restrict usage to Sessions owned by this user; admins omit it to see the whole Project. */
+  ownerUserId?: string;
   /** Restrict to these sessions (company mode attributes cost by the sessions an organization owns); an empty list matches nothing. */
   sessionIds?: readonly string[];
 }
@@ -255,6 +257,16 @@ export class UsageRepo implements UsageStore {
       conds.push("model_id = :modelId");
       params.modelId = f.modelId;
     }
+    if (f.ownerUserId !== undefined) {
+      conds.push(`EXISTS (
+        SELECT 1
+        FROM sessions session_owner
+        WHERE session_owner.project_id = usage_records.project_id
+          AND session_owner.session_id = usage_records.session_id
+          AND session_owner.owner_user_id = :ownerUserId
+      )`);
+      params.ownerUserId = f.ownerUserId;
+    }
     if (f.sessionIds !== undefined) {
       if (f.sessionIds.length === 0) {
         conds.push("0");
@@ -369,23 +381,26 @@ export class UsageRepo implements UsageStore {
   }
 
   /** Distinct agent_id values seen for this Project (for filter dropdowns). */
-  distinctAgentIds(projectId: string): string[] {
+  distinctAgentIds(projectId: string, f: UsageFilter = {}): string[] {
+    const { where, params } = this.conds(projectId, f);
     const rows = this.db
-      .prepare(
-        "SELECT DISTINCT agent_id AS v FROM usage_records WHERE project_id = ? ORDER BY agent_id",
-      )
-      .all(projectId);
+      .prepare(`SELECT DISTINCT agent_id AS v FROM usage_records WHERE ${where} ORDER BY agent_id`)
+      .all(params);
     return rows.map((r) => r.v as string);
   }
 
   /** Distinct Model paired references seen for this Project (for filter dropdowns). */
-  distinctModels(projectId: string): Array<{ provider: string; modelId: string }> {
+  distinctModels(
+    projectId: string,
+    f: UsageFilter = {},
+  ): Array<{ provider: string; modelId: string }> {
+    const { where, params } = this.conds(projectId, f);
     const rows = this.db
       .prepare(
         `SELECT DISTINCT provider, model_id FROM usage_records
-         WHERE project_id = ? ORDER BY provider, model_id`,
+         WHERE ${where} ORDER BY provider, model_id`,
       )
-      .all(projectId);
+      .all(params);
     return rows.map((r) => ({ provider: r.provider as string, modelId: r.model_id as string }));
   }
 

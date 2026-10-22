@@ -112,8 +112,11 @@ export abstract class UsageStore {
     granularity: UsageSeriesGranularity,
     f?: UsageFilter,
   ): UsageAgentBucketCount[];
-  abstract distinctAgentIds(projectId: string): string[];
-  abstract distinctModels(projectId: string): { provider: string; modelId: string }[];
+  abstract distinctAgentIds(projectId: string, f?: UsageFilter): string[];
+  abstract distinctModels(
+    projectId: string,
+    f?: UsageFilter,
+  ): { provider: string; modelId: string }[];
   abstract deleteByProject(projectId: string): void;
 }
 

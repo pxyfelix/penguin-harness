@@ -101,6 +101,8 @@ export interface UsageQuery {
   /** Top-level filter: view by Model (paired with modelId; the dropdown always sends them as a pair). */
   provider?: string;
   modelId?: string;
+  /** Non-admin owner scope: only usage from Sessions owned by this user. */
+  ownerUserId?: string;
   /** Whether to include unattributed errors: admin only (the route passes user.isAdmin), defaults to false. */
   includeGlobalErrors?: boolean;
   /** Time-series precision for `series` / `byAgentSeries` / `byModelSeries`; defaults to day. The route validates the value; the bucket count is capped here. */
@@ -331,6 +333,7 @@ export class UsageService implements UsageQueries {
     if (q.agentId !== undefined) base.agentId = q.agentId;
     if (q.provider !== undefined) base.provider = q.provider;
     if (q.modelId !== undefined) base.modelId = q.modelId;
+    if (q.ownerUserId !== undefined) base.ownerUserId = q.ownerUserId;
 
     const win = (from?: string, to?: string): UsageFilter => ({
       ...base,
@@ -400,6 +403,7 @@ export class UsageService implements UsageQueries {
     // chart draws that dimension's whole breakdown) but honors the other
     // dimension plus the selected range.
     const agentFree: UsageFilter = {
+      ...(q.ownerUserId !== undefined ? { ownerUserId: q.ownerUserId } : {}),
       ...(q.provider !== undefined ? { provider: q.provider } : {}),
       ...(q.modelId !== undefined ? { modelId: q.modelId } : {}),
       ...(q.from !== undefined ? { from: q.from } : {}),
@@ -418,6 +422,7 @@ export class UsageService implements UsageQueries {
     const modelBucketRows = modelFiltered
       ? this.usage.seriesByModel(projectId, granularity, {
           ...(q.agentId !== undefined ? { agentId: q.agentId } : {}),
+          ...(q.ownerUserId !== undefined ? { ownerUserId: q.ownerUserId } : {}),
           from: seriesFrom,
           to: seriesTo,
           ...ts,
@@ -465,8 +470,12 @@ export class UsageService implements UsageQueries {
       byModelSeries: foldModelSeries(bucketKeys, modelBucketRows),
       byUser: this.foldGroups(userRows, rates, "user"),
       errors: this.foldErrors(projectId, errorFilter, q.utcOffsetMinutes),
-      agentIds: this.usage.distinctAgentIds(projectId),
-      models: this.usage.distinctModels(projectId),
+      agentIds: this.usage.distinctAgentIds(projectId, {
+        ...(q.ownerUserId !== undefined ? { ownerUserId: q.ownerUserId } : {}),
+      }),
+      models: this.usage.distinctModels(projectId, {
+        ...(q.ownerUserId !== undefined ? { ownerUserId: q.ownerUserId } : {}),
+      }),
     };
   }
 

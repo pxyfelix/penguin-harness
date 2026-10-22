@@ -379,6 +379,10 @@ export function UsagePage() {
         }
       />
 
+      {user && !user.isAdmin && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">{S.usage.memberScopeNote}</p>
+      )}
+
       {/* Last stop on the Cost Center trail, in the one shape all four dismissible trails
           use: directly under the title, not down against the errors table. It counts the
           probe's own trailing window (use-project-todos.ts), which is not the filters above
