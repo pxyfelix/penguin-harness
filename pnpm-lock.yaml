@@ -818,6 +818,8 @@ importers:
 
   plugins/clinical-feedback-loop: {}
 
+  plugins/clinical-lead-delegation: {}
+
   plugins/clinical-task-routing: {}
 
   plugins/continual-learning: {}

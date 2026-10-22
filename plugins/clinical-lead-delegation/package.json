@@ -1,0 +1,32 @@
+{
+  "name": "@penguinharness/clinical-lead-delegation",
+  "version": "0.1.0",
+  "description": "Route clinical statistical deliverables from the Lead Statistician to specialist Agents.",
+  "keywords": [
+    "penguin-plugin",
+    "penguinharness",
+    "clinical",
+    "statistics",
+    "delegation"
+  ],
+  "license": "Apache-2.0",
+  "files": [
+    "icon.svg",
+    "skills",
+    "README.md"
+  ],
+  "penguin": {
+    "description_zh": "为 Lead Statistician 提供 CRF、SAP 和 Table Shell 的专业 Agent 委派流程。",
+    "short_description": "Coordinate clinical statistical deliverables through specialist Agents.",
+    "short_description_zh": "由 Lead Statistician 调度临床统计专业 Agent。",
+    "category": "office-productivity",
+    "icon": "icon.svg",
+    "preinstall": false,
+    "quick_start": {
+      "prompt": "Use the clinical lead delegation workflow for this statistical request.",
+      "prompt_zh": "按临床统计负责人委派流程处理这个任务。"
+    },
+    "title": "Clinical Lead Delegation",
+    "title_zh": "临床统计委派"
+  }
+}
