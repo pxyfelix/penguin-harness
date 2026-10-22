@@ -2270,7 +2270,7 @@ export class SessionManager {
     // is never replayed onto the parent stream (ContextEngine writes the Trace but never
     // yields it), so we can't rely on the subagent's first user message; instead we use
     // the run_subagent tool_call arguments immediately preceding it on the parent stream
-    // (depth limited to 1, spawned in order, so taking the most recent one suffices).
+    // (direct children are spawned in order, so taking the most recent one suffices).
     /** Subagents registered during this run (keyed by session id); each gets its title generated at registration, from its spawning prompt alone. */
     const children = new Map<string, ChildSession>();
     // Unclaimed run_subagent prompts, queued in call order: a single round may spawn
@@ -2868,12 +2868,16 @@ export class SessionsModule {
           return project !== null && project.ownerUserId !== row.ownerUserId;
         };
         const isolationMasks = (opts: Parameters<SpawnConfiner>[1]): readonly string[] => {
-          const row = sessionsRepo.findById(root);
-          if (row === null || !isMemberSession(row)) return [];
+          const rootRow = sessionsRepo.findById(root);
+          if (rootRow === null || !isMemberSession(rootRow)) return [];
+          // A child Agent keeps its own Agent state (skills and configuration) while sharing
+          // the root Session's Workspace. The root supplies ownership and policy; its agentId
+          // alone cannot describe everything this command may legitimately read.
+          const sessionRow = sessionsRepo.findById(ctx.sessionId);
           return tenantIsolationMaskPaths({
             dataRoot: config.root,
-            projectId: row.projectId,
-            agentId: row.agentId,
+            projectId: rootRow.projectId,
+            agentId: sessionRow?.agentId ?? ctx.agentId,
             workspace: opts.workspaceDir,
             ...(opts.scratchpadDir !== undefined ? { scratchpad: opts.scratchpadDir } : {}),
           });

@@ -59,18 +59,35 @@ export function tenantIsolationMaskPaths(args: TenantIsolationPaths): string[] {
   const dataRoot = path.resolve(args.dataRoot);
   const homeDir = path.resolve(args.homeDir ?? os.homedir());
   const projectDir = path.join(dataRoot, args.projectId);
-  const agentDir = path.join(projectDir, "agents", args.agentId);
+  const agentsDir = path.join(projectDir, "agents");
+  const agentDir = path.join(agentsDir, args.agentId);
   const workspace = path.resolve(args.workspace);
   const scratchpad = args.scratchpad === undefined ? null : path.resolve(args.scratchpad);
   const masks = new Set<string>();
+  const workspaceParts = path.relative(agentsDir, workspace).split(path.sep);
+  const workspaceAgentId =
+    workspaceParts.length >= 3 &&
+    workspaceParts[0] !== "" &&
+    workspaceParts[0] !== "." &&
+    workspaceParts[0] !== ".." &&
+    workspaceParts[1] === "workspaces"
+      ? workspaceParts[0]!
+      : null;
+  const workspaceAgentDir =
+    workspaceAgentId === null ? null : path.join(agentsDir, workspaceAgentId);
 
   // Another Project, machine state, the SQLite index/token, and every other server-level
   // entry in the data root. `bin` is the CLI shim every Agent command may invoke.
   addSiblingsExcept(masks, dataRoot, [projectDir, path.join(dataRoot, "bin")]);
 
   // Another Agent in this Project, plus Project-wide state that no ordinary chat needs
-  // through a shell. The Project config carries model credentials.
-  addSiblingsExcept(masks, path.join(projectDir, "agents"), [agentDir]);
+  // through a shell. A subagent may use its own Agent state and a Workspace owned by an
+  // ancestor Agent, so both directories remain reachable. The Project config carries model
+  // credentials.
+  addSiblingsExcept(masks, agentsDir, [
+    agentDir,
+    ...(workspaceAgentDir === null ? [] : [workspaceAgentDir]),
+  ]);
   add(masks, path.join(projectDir, ".project_config.toml"));
   add(masks, path.join(projectDir, "organizations"));
 
@@ -80,6 +97,15 @@ export function tenantIsolationMaskPaths(args: TenantIsolationPaths): string[] {
   add(masks, path.join(agentDir, "baseline-backups"));
   add(masks, path.join(agentDir, "snapshots"));
   add(masks, path.join(agentDir, "agent_state", ".vault.toml"));
+
+  // The Workspace owner is typically the root Agent while the command belongs to a nested
+  // child, which has its own Agent state. Keep only that Agent's Workspaces subtree, then
+  // only the shared Workspace inside it.
+  if (workspaceAgentDir !== null && path.resolve(workspaceAgentDir) !== path.resolve(agentDir)) {
+    const workspaceOwnerWorkspaces = path.join(workspaceAgentDir, "workspaces");
+    addSiblingsExcept(masks, workspaceAgentDir, [workspaceOwnerWorkspaces]);
+    addSiblingsExcept(masks, workspaceOwnerWorkspaces, [workspace]);
+  }
 
   // Workspaces and scratchpads are per Session/person, not Project-shared directories.
   addSiblingsExcept(masks, path.join(agentDir, "workspaces"), [workspace]);

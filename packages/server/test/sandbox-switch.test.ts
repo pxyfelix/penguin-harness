@@ -406,6 +406,114 @@ describe("the sandbox switch", () => {
     expect(seen!.maskPaths).not.toContain(path.join(t.root, projectId));
   });
 
+  it("keeps a nested member subagent's own Agent state and shared Workspace visible", async () => {
+    let seen: SandboxPolicy | null = null;
+    const recorder: SandboxProvider = {
+      dimensions: ["fs-write", "network", "mask-paths"],
+      confine(argv, policy) {
+        seen = policy;
+        return {
+          argv: ["confined", ...argv],
+          enforcement: "full",
+          denialSignatures: [],
+          runnerFailureRules: [],
+        };
+      },
+    };
+    const { t, save } = await boot({
+      plugins: backendPlugin({ "recorder.provider": recorder }),
+    });
+    expect((await save({ enabled: true, defaultPreset: "full-access" })).status).toBe(200);
+
+    const owner = apiClient(t.app, (await provisionUser(t.app, "owner_nested_masks")).cookie);
+    const member = apiClient(t.app, (await provisionUser(t.app, "member_nested_masks")).cookie);
+    const projectId = (
+      (await (
+        await owner.post("/api/projects", {
+          projectId: "owner_nested_masks-team",
+          name: "Team",
+        })
+      ).json()) as { project: { projectId: string } }
+    ).project.projectId;
+    expect(
+      (
+        await owner.post(`/api/projects/${projectId}/members`, {
+          userId: "member_nested_masks",
+        })
+      ).status,
+    ).toBe(201);
+    const model = { provider: "anthropic", modelId: "claude-sonnet-4-6" };
+    expect(
+      (
+        await owner.put(`/api/projects/${projectId}/models`, {
+          defaultModel: model,
+          models: [{ ...model, contextWindow: 128000 }],
+        })
+      ).status,
+    ).toBe(200);
+    const created = await member.post(
+      `/api/projects/${projectId}/agents/default_agent/sessions`,
+      {},
+    );
+    expect(created.status).toBe(201);
+    const session = (
+      (await created.json()) as {
+        session: { sessionId: string; workspace: string; sandbox: SessionSandbox };
+      }
+    ).session;
+
+    const leadAgentDir = path.join(t.root, projectId, "agents", "lead_statistician");
+    const unrelatedAgentDir = path.join(t.root, projectId, "agents", "sap_author");
+    await fs.mkdir(path.join(leadAgentDir, "agent_state", "skills"), { recursive: true });
+    await fs.mkdir(path.join(unrelatedAgentDir, "agent_state"), { recursive: true });
+    const now = new Date().toISOString();
+    t.deps.sessionsRepo.insert({
+      sessionId: "session-nested-lead",
+      projectId,
+      ownerUserId: "member_nested_masks",
+      agentId: "lead_statistician",
+      provider: model.provider,
+      modelId: model.modelId,
+      workspace: session.workspace,
+      approvalMode: "allow-all",
+      title: null,
+      lastActiveAt: now,
+      createdAt: now,
+    });
+    const childRoots = (
+      t.deps.manager as unknown as {
+        childRoots: Map<string, string>;
+      }
+    ).childRoots;
+    childRoots.set("session-nested-lead", session.sessionId);
+
+    const env = t.deps.tree.api<SessionEnv>("SessionsModule", "env");
+    const confiner = env.confineSpawn({
+      projectId,
+      agentId: "lead_statistician",
+      sessionId: "session-nested-lead",
+    });
+    expect(confiner).not.toBeNull();
+    confiner!(["true"], {
+      cwd: session.workspace,
+      workspaceDir: session.workspace,
+    });
+
+    const masks = seen!.maskPaths ?? [];
+    expect(masks).not.toContain(leadAgentDir);
+    expect(
+      masks.filter((mask) => {
+        const resolved = path.resolve(mask);
+        const workspace = path.resolve(session.workspace);
+        return (
+          resolved.startsWith(`${path.resolve(t.root, projectId)}${path.sep}`) &&
+          (workspace === resolved || workspace.startsWith(`${resolved}${path.sep}`))
+        );
+      }),
+    ).toEqual([]);
+    expect(masks).toContain(unrelatedAgentDir);
+  });
+
   it.each([
     ["declined only", { "elsewhere.provider": Promise.resolve(null) }, false],
     [
