@@ -31,3 +31,7 @@ masking other users' data.
 The optional `setup-sap-generation.sh` copies only the shared `auto_sap` source into
 `/home/ubuntu/toolchains/sap-generation`, installs its Python dependencies into the shared
 site, and deliberately excludes `.env`, project data, and user deliverables.
+
+The shared site also carries `pypdf` and `mistune` for the review core. SAP-generation adds
+`docxtpl`, `openai`, `PyPDF2`, `python-dotenv`, and `requests`; the original project directory
+under `/home/ubuntu/sap` remains blocked by tenant isolation.
