@@ -70,7 +70,9 @@ vi.mock("../src/environment/index.js", async (importOriginal) => {
 // Captures every GenerativeModelConfig buildRuntime constructs: the effective thinking level
 // is no longer observable through session_meta (it holds invariants only) — assertions read
 // the construction default from the captured config instead.
-const capturedLLMConfigs = vi.hoisted(() => ({ list: [] as { thinkingLevel?: string }[] }));
+const capturedLLMConfigs = vi.hoisted(() => ({
+  list: [] as { thinkingLevel?: string; tools?: { name: string }[] }[],
+}));
 vi.mock("../src/llm/index.js", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../src/llm/index.js")>();
   class CapturingGenerativeModel extends mod.GenerativeModel {
@@ -473,6 +475,40 @@ describe("run_subagent spawning follows the PARENT session (never the Project de
       expect(child.workspace).toBe(ws);
     } finally {
       parent.dispose();
+    }
+  });
+
+  it("lets a Lead child delegate once more, while a specialist child cannot delegate", async () => {
+    const agent = await createAgent();
+    const ws = path.join(tmpRoot, "ws-nested-delegation");
+    await fs.mkdir(ws, { recursive: true });
+
+    const lead = await agent.createSession({
+      workspaceDir: ws,
+      subagentDepth: 1,
+      source: "subagent",
+    });
+    try {
+      await bootstrapped(lead);
+      const tools = capturedLLMConfigs.list.at(-1)?.tools?.map((tool) => tool.name) ?? [];
+      expect(tools).toContain("run_subagent");
+      expect(tools).toContain("input_subagent");
+    } finally {
+      lead.dispose();
+    }
+
+    const specialist = await agent.createSession({
+      workspaceDir: ws,
+      subagentDepth: 2,
+      source: "subagent",
+    });
+    try {
+      await bootstrapped(specialist);
+      const tools = capturedLLMConfigs.list.at(-1)?.tools?.map((tool) => tool.name) ?? [];
+      expect(tools).not.toContain("run_subagent");
+      expect(tools).not.toContain("input_subagent");
+    } finally {
+      specialist.dispose();
     }
   });
 

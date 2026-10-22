@@ -115,11 +115,10 @@ import type {
 } from "./interfaces/index.js";
 
 /**
- * Maximum subagent spawn depth. Currently capped at 1 level (a subagent cannot spawn
- * another subagent); the depth mechanism is designed to support multiple levels —
- * raise this constant to allow deeper nesting.
+ * Maximum subagent spawn depth. Two levels let a general entry Agent delegate to a lead,
+ * and the lead delegate to specialist Agents. A specialist at depth 2 cannot spawn again.
  */
-const MAX_SUBAGENT_DEPTH = 1;
+const MAX_SUBAGENT_DEPTH = 2;
 
 export interface CreateAgentOptions {
   agentId?: string;

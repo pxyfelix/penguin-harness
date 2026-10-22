@@ -1,0 +1,32 @@
+{
+  "name": "@penguinharness/clinical-task-routing",
+  "version": "0.1.0",
+  "description": "Route clinical statistical work from the General Agent to the Lead Statistician.",
+  "keywords": [
+    "penguin-plugin",
+    "penguinharness",
+    "clinical",
+    "statistics",
+    "routing"
+  ],
+  "license": "Apache-2.0",
+  "files": [
+    "icon.svg",
+    "skills",
+    "README.md"
+  ],
+  "penguin": {
+    "description_zh": "让 General Agent 把 CRF、SAP、Table Shell 等统计任务交给 Lead Statistician，再由 Lead 分派给专业 Agent。",
+    "short_description": "Route clinical statistical work through the Lead Statistician.",
+    "short_description_zh": "把临床统计任务路由给 Lead Statistician。",
+    "category": "office-productivity",
+    "icon": "icon.svg",
+    "preinstall": false,
+    "quick_start": {
+      "prompt": "Route this clinical statistical request through the Lead Statistician.",
+      "prompt_zh": "把这个临床统计任务交给 Lead Statistician 处理。"
+    },
+    "title": "Clinical Task Routing",
+    "title_zh": "临床任务路由"
+  }
+}
