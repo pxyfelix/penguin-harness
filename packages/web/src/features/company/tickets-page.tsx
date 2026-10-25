@@ -61,6 +61,7 @@ import {
 import * as api from "../../api/endpoints";
 import { S } from "../../lib/strings";
 import { apiErrorText } from "../../lib/api-error";
+import { ROUTER_MODE, appRouteUrl } from "../../lib/router-mode";
 import { useDocumentTitle } from "../../lib/use-document-title";
 import { toneDot, toneInk } from "../../lib/tone";
 import { useAuth } from "../../state/auth";
@@ -196,7 +197,7 @@ export function TicketsPage() {
     // mounted, since the router commits its new location in a transition. Writing the query now
     // would resolve against this page's stale location and replace the new history entry with
     // the board — the navigation would silently land back here.
-    if (window.location.pathname !== routedPath) return;
+    if (appRouteUrl(window.location.href, ROUTER_MODE).pathname !== routedPath) return;
     if (urlTicket !== syncedTicket.current) {
       syncedTicket.current = urlTicket;
       if (urlTicket !== null) {

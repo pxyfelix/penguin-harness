@@ -38,6 +38,7 @@ import {
   type TerminalStatus,
 } from "./terminal-view";
 import { rememberTerminalMachine } from "../../lib/terminal-machines";
+import { ROUTER_MODE, appRouteHref, appRouteUrl } from "../../lib/router-mode";
 
 const STORAGE_KEY = "penguin.terminal.page.id";
 
@@ -74,9 +75,9 @@ export function parseTerminalParams(search: string): TerminalPageParams {
  * state is kept: the router stores its position in it, and back and forward measure from it.
  */
 function writeIdToUrl(id: string): void {
-  const url = new URL(location.href);
+  const url = appRouteUrl(location.href, ROUTER_MODE);
   url.searchParams.set("id", id);
-  history.replaceState(history.state, "", url);
+  history.replaceState(history.state, "", appRouteHref(url, location.href, ROUTER_MODE));
 }
 
 async function attachOrCreate(
@@ -133,12 +134,15 @@ export function TerminalPage() {
   // which the router never observes — its location object would go stale after the first
   // attach. Re-read on each restart (generation bump).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const params = useMemo(() => parseTerminalParams(window.location.search), [generation]);
+  const params = useMemo(
+    () => parseTerminalParams(appRouteUrl(window.location.href, ROUTER_MODE).search),
+    [generation],
+  );
 
   const ensure = useCallback(
     async (cols: number, rows: number): Promise<TerminalInfo> => {
       const terminal = await attachOrCreate(
-        parseTerminalParams(window.location.search),
+        parseTerminalParams(appRouteUrl(window.location.href, ROUTER_MODE).search),
         cols,
         rows,
       );
@@ -153,9 +157,9 @@ export function TerminalPage() {
   /** "New terminal": drop the current session and recreate from cwd/name (id removed). */
   const restart = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
-    const url = new URL(location.href);
+    const url = appRouteUrl(location.href, ROUTER_MODE);
     url.searchParams.delete("id");
-    history.replaceState(history.state, "", url);
+    history.replaceState(history.state, "", appRouteHref(url, location.href, ROUTER_MODE));
     setStatus("connecting");
     setDetail("");
     setInfo(null);

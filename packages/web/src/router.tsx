@@ -20,10 +20,12 @@ import {
   Route,
   RouterProvider,
   createBrowserRouter,
+  createHashRouter,
   createMemoryRouter,
   createRoutesFromElements,
 } from "react-router";
 import { NavigationGuard } from "./lib/unsaved/navigation-guard";
+import { ROUTER_MODE, migrateLegacyHashLocation } from "./lib/router-mode";
 import { useAuth } from "./state/auth";
 import { useRuntimeLanguages } from "./features/chat/use-runtime-languages";
 import { ProjectProvider } from "./state/project";
@@ -196,13 +198,19 @@ function appRoutes() {
  * so a second one (a language switch remounts the tree; StrictMode runs initializers twice)
  * would be a second listener acting on every back and forward.
  */
-let browserRouter: ReturnType<typeof createBrowserRouter> | null = null;
+let browserRouter:
+  | ReturnType<typeof createBrowserRouter>
+  | ReturnType<typeof createHashRouter>
+  | null = null;
 
 export function AppRouter({ initialPath }: { initialPath?: string } = {}) {
-  const [router] = useState(() =>
-    initialPath === undefined
-      ? (browserRouter ??= createBrowserRouter(appRoutes()))
-      : createMemoryRouter(appRoutes(), { initialEntries: [initialPath] }),
-  );
+  const [router] = useState(() => {
+    if (initialPath !== undefined) {
+      return createMemoryRouter(appRoutes(), { initialEntries: [initialPath] });
+    }
+    migrateLegacyHashLocation();
+    return (browserRouter ??=
+      ROUTER_MODE === "hash" ? createHashRouter(appRoutes()) : createBrowserRouter(appRoutes()));
+  });
   return <RouterProvider router={router} />;
 }
