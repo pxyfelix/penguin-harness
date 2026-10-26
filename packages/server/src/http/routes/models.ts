@@ -34,6 +34,7 @@ import type { SessionIndex } from "../../mechanisms/sessions.js";
 import type { Access, ProjectConfigStore } from "../../mechanisms/projects.js";
 import type { Machines } from "../../machines/service.js";
 import { ModelBalances } from "../../services/model-balance.js";
+import { filterModelsForViewer } from "../../services/model-visibility.js";
 
 /** What this route group reaches — bound by its module (src/modules). */
 export interface ModelsRouteDeps {
@@ -304,7 +305,12 @@ export function modelsRoutes(deps: ModelsRouteDeps): Hono<AppEnv> {
     // Defensive id validation.
     const projectId = requireValidId(c, "projectId");
     deps.access.requireProjectAccess(c.var.user.userId, projectId);
-    return c.json(await deps.projectConfigService.getModels(projectId));
+    return c.json(
+      filterModelsForViewer(
+        await deps.projectConfigService.getModels(projectId),
+        c.var.user.isAdmin,
+      ),
+    );
   });
 
   app.put("/", async (c) => {

@@ -218,17 +218,25 @@ describe("groupModelRows with a manual group order", () => {
     expect(idsOf(["gone-vendor", "minimax", "also-gone"])).toEqual(idsOf(["minimax"]));
   });
 
-  it("custom keeps its own rule: shown even when empty, at whatever place the order gives it", () => {
+  it("empty providers stay hidden once another provider has models", () => {
+    expect(
+      groupModelRows([{ provider: "deepseek", modelId: "deepseek-v4-flash" }], "", []).map(
+        (g) => g.provider.id,
+      ),
+    ).toEqual(["deepseek"]);
+  });
+
+  it("custom keeps its own rule only when the library has no models at all", () => {
     const withoutCustomRows = rows.filter((r) => r.provider !== "custom");
-    // Unplaced and empty: still rendered (it hosts the add entry point), in catalog order.
-    expect(groupModelRows(withoutCustomRows, "", []).map((g) => g.provider.id)).toContain("custom");
-    // Dragged to the front while still empty. Every group is named in the order, so none
-    // is unplaced and surfacing above it.
-    const keys = allGroupKeys(withoutCustomRows);
-    const ordered = groupModelRows(withoutCustomRows, "", [
+    // Other configured models keep the empty Custom group out of the library.
+    expect(groupModelRows(withoutCustomRows, "", []).map((g) => g.provider.id)).not.toContain(
       "custom",
-      ...keys.filter((id) => id !== "custom"),
-    ]);
+    );
+    // With no configured models, Custom remains the empty-state add entry point and can be
+    // ordered like any other group.
+    expect(groupModelRows([], "", []).map((g) => g.provider.id)).toEqual(["custom"]);
+    const keys = allGroupKeys(withoutCustomRows);
+    const ordered = groupModelRows([], "", ["custom", ...keys.filter((id) => id !== "custom")]);
     expect(ordered[0]!.provider.id).toBe("custom");
     expect(ordered[0]!.rows).toEqual([]);
   });

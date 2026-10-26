@@ -6,9 +6,8 @@
  * forms its own group, keeping its original value, with OpenAI protocol semantics (env
  * fallback OPENAI_*), sorted by name and appended after custom. Matches model_id /
  * display name / provider / vendor name case-insensitively; built-in group order follows
- * the MODEL_PROVIDERS definition. Empty groups aren't returned, except the custom group,
- * which is always shown when there's no search query (rendered even when empty, to host
- * the generic "add model" entry point).
+ * the MODEL_PROVIDERS definition. Empty groups aren't returned. The custom group is shown
+ * empty only when the library has no models at all, where it hosts the initial add entry.
  *
  * That automatic sequence is the DEFAULT, not the last word: every entry point takes an
  * optional `groupOrder` — the user's dragged arrangement, stored per Project by
@@ -99,9 +98,9 @@ export interface ProviderGroup<T extends ModelRowLike> {
 /**
  * Filter + group by vendor; rows within a group keep their original order (the models page
  * then orders each group by that group's sort, model-sort.ts; the chat model picker keeps
- * this order). Built-in groups follow MODEL_PROVIDERS order (the custom group is returned
- * even when empty, when there's no search query); user-defined groups each form their own
- * group, sorted by name and appended after custom.
+ * this order). Built-in groups follow MODEL_PROVIDERS order; user-defined groups each form
+ * their own group, sorted by name and appended after custom. An empty custom group appears
+ * only when no model exists at all; otherwise only providers holding models are rendered.
  *
  * `groupOrder` then rearranges that list: groups it names take its order, groups it does
  * not keep their automatic order and TRAIL (orderModelGroups — a group the user just
@@ -125,7 +124,9 @@ export function groupModelRows<T extends ModelRowLike>(
     rows: filtered.filter((r) => r.provider === id),
   }));
   const ordered = orderModelGroups([...builtin, ...extras], (g) => g.provider.id, groupOrder);
-  return ordered.filter((g) => g.rows.length > 0 || (!searching && g.provider.id === "custom"));
+  return ordered.filter(
+    (g) => g.rows.length > 0 || (!searching && filtered.length === 0 && g.provider.id === "custom"),
+  );
 }
 
 /**
